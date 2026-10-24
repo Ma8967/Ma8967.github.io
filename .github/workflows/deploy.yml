@@ -11,6 +11,10 @@ name: Deploy Hexo
 on:
   push:
     branches: [main]
+  # 每 30 分钟重建一次，让「定时上传」的文章到点自动上线
+  # GitHub 的定时任务可能有几分钟到半小时的延迟，且仓库 60 天无提交会暂停
+  schedule:
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 permissions:

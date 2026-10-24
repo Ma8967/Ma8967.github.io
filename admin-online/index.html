@@ -10,6 +10,7 @@
     --muted:#6b7280; --accent:#3b6ef6; --danger:#d93a3a; --ok:#1a9f5c;
   }
   *{box-sizing:border-box}
+  .hidden{display:none !important}
   html,body{height:100%;margin:0}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
@@ -38,11 +39,16 @@
   button:disabled{opacity:.55;cursor:not-allowed}
   button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
   button.primary:hover{background:#2f5fe0}
+  button.accent{background:var(--ok);border-color:var(--ok);color:#fff}
+  button.accent:hover{background:#158a4f}
   button.danger{color:var(--danger);border-color:#f0c9c9}
   button.danger:hover{background:#fdf2f2}
   .spacer{margin-left:auto}
   main{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:290px 1fr}
   aside{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+  .mode{display:flex;gap:3px;padding:8px 10px 0;background:#f0f2f5;margin:8px 10px 0;border-radius:7px}
+  .mode button{flex:1;height:28px;border:0;background:transparent;color:var(--muted);font-weight:400;padding:0}
+  .mode button.active{background:#fff;color:var(--text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08)}
   .aside-head{padding:10px;border-bottom:1px solid var(--border);display:flex;gap:8px}
   .aside-head input{flex:1;height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;outline:none;min-width:0}
   #list{list-style:none;margin:0;padding:6px;overflow-y:auto;flex:1}
@@ -50,7 +56,10 @@
   #list li:hover{background:#f6f8fb}
   #list li.active{background:#eaf0ff;border-color:#cddcff}
   .li-title{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .li-meta{font-size:11.5px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .li-meta{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;gap:6px;align-items:center}
+  .badge{display:inline-flex;align-items:center;height:17px;padding:0 6px;border-radius:4px;font-size:11px;line-height:1}
+  .badge.draft{background:#eef0f3;color:#6b7280}
+  .badge.schedule{background:#fff4e5;color:#b26a00}
   section.editor{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)}
   #empty{margin:auto;color:var(--muted);font-size:13px;text-align:center;line-height:1.9;padding:20px}
   #editor{display:none;flex-direction:column;height:100%;min-height:0}
@@ -61,6 +70,7 @@
   .toolbar{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:#fafbfc}
   .file{font-family:Consolas,monospace;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
   .check{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);cursor:pointer}
+  .schedule-note{padding:8px 18px;font-size:12px;color:var(--muted);background:#fbfcfd;border-bottom:1px solid var(--border)}
   textarea{
     flex:1;border:0;outline:none;resize:none;padding:18px;font-size:13.5px;line-height:1.75;
     font-family:Consolas,"Courier New",monospace;color:var(--text);min-height:0
@@ -76,7 +86,7 @@
   .note{padding:10px 14px;margin:12px 18px 0;border-radius:8px;background:#fff8e6;border:1px solid #f0e0b0;color:#7a5b00;font-size:12.5px;line-height:1.7;display:none}
   .note.show{display:block}
   @media (max-width:860px){
-    main{grid-template-columns:1fr;grid-template-rows:200px 1fr}
+    main{grid-template-columns:1fr;grid-template-rows:220px 1fr}
     aside{border-right:0;border-bottom:1px solid var(--border)}
     .meta{grid-template-columns:1fr 1fr}
     #token{width:140px}
@@ -100,6 +110,11 @@
 
 <main>
   <aside>
+    <div class="mode" id="mode">
+      <button data-mode="post" class="active">文章</button>
+      <button data-mode="draft">草稿</button>
+      <button data-mode="page">页面</button>
+    </div>
     <div class="aside-head">
       <input id="search" placeholder="搜索标题…">
       <button id="new">新建</button>
@@ -108,22 +123,27 @@
   </aside>
 
   <section class="editor">
-    <div id="empty">先在顶部填写仓库信息并连接，<br>然后从左侧选择文章开始编辑。</div>
+    <div id="empty">先在顶部填写仓库信息并连接，<br>然后从左侧选择内容开始编辑。</div>
 
     <div id="editor">
       <div class="meta">
         <label>标题<input id="f-title"></label>
-        <label>日期<input id="f-date" type="datetime-local"></label>
-        <label>分类<input id="f-categories" placeholder="逗号分隔"></label>
-        <label>标签<input id="f-tags" placeholder="逗号分隔"></label>
+        <label class="post-only">日期<input id="f-date" type="datetime-local"></label>
+        <label class="post-only">分类<input id="f-categories" placeholder="逗号分隔"></label>
+        <label class="post-only">标签<input id="f-tags" placeholder="逗号分隔"></label>
       </div>
       <div class="toolbar">
         <span class="file" id="file-name"></span>
-        <label class="check"><input type="checkbox" id="f-mathjax"> MathJax</label>
+        <label class="check post-only"><input type="checkbox" id="f-mathjax"> MathJax</label>
+        <span id="sched" class="badge schedule hidden">定时发布</span>
         <span class="spacer"></span>
-        <button id="btn-upload">插入图片</button>
+        <button id="btn-publish" class="accent hidden">发布为文章</button>
+        <button id="btn-upload" class="post-only">插入图片</button>
         <button id="btn-delete" class="danger">删除</button>
         <button id="btn-save" class="primary">保存到仓库</button>
+      </div>
+      <div class="schedule-note post-only">
+        日期填未来时间即为「定时上传」，到点后由 GitHub Actions 的定时构建自动上线。
       </div>
       <textarea id="f-body" spellcheck="false" placeholder="用 Markdown 写正文…"></textarea>
     </div>
@@ -140,10 +160,14 @@ const $ = (s) => document.querySelector(s);
 const API = 'https://api.github.com';
 
 let cfg = { owner: '', repo: '', branch: 'main', token: '' };
-let files = [];          // [{name, sha, size}]
-let current = null;      // {name, sha, raw}
-let currentFm = '';      // 原始 front-matter 文本
+let mode = 'post';           // post | draft | page
+let items = [];              // 文章 / 草稿
+let pages = [];              // 页面
+let current = null;          // { mode, name, path, sha }
+let currentFm = '';
 let dirty = false;
+
+const DIRS = { post: 'source/_posts', draft: 'source/_drafts' };
 
 /* ---------------- 消息 ---------------- */
 let msgTimer;
@@ -188,8 +212,7 @@ async function gh(path, options = {}) {
   const text = await res.text();
   if (text) { try { body = JSON.parse(text); } catch (e) { body = text; } }
   if (!res.ok) {
-    const m = (body && body.message) || res.statusText;
-    const err = new Error(m + ' (' + res.status + ')');
+    const err = new Error(((body && body.message) || res.statusText) + ' (' + res.status + ')');
     err.status = res.status;
     throw err;
   }
@@ -290,6 +313,18 @@ function patchFm(fm, fields) {
   return out.concat(kept.filter((l) => l.trim() !== '')).join('\n');
 }
 
+/** 页面只替换标题，保留 layout/date 等字段 */
+function patchTitle(fm, title) {
+  const lines = fm ? fm.split(/\r?\n/) : [];
+  let found = false;
+  const out = lines.map((line) => {
+    if (/^title\s*:/.test(line)) { found = true; return 'title: ' + quote(title); }
+    return line;
+  });
+  if (!found) out.unshift('title: ' + quote(title));
+  return out.join('\n');
+}
+
 function splitList(v) {
   return String(v || '').split(/[,，]/).map((s) => s.trim()).filter(Boolean);
 }
@@ -306,7 +341,12 @@ function nowLocal() {
     ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':00';
 }
 
-/* ---------------- 列表 ---------------- */
+function isFuture(value) {
+  const t = new Date(String(value || '').replace(' ', 'T')).getTime();
+  return Number.isFinite(t) && t > Date.now();
+}
+
+/* ---------------- 连接 / 列表 ---------------- */
 async function connect() {
   cfg.owner = $('#owner').value.trim();
   cfg.repo = $('#repo').value.trim() || (cfg.owner + '.github.io');
@@ -321,7 +361,7 @@ async function connect() {
     await gh(`/repos/${cfg.owner}/${cfg.repo}`);
     saveConfig();
     updateSiteLink();
-    await loadFiles();
+    await refreshList();
     msg('连接成功', 'ok');
   } catch (e) {
     msg('连接失败：' + e.message, 'error');
@@ -331,22 +371,52 @@ async function connect() {
   }
 }
 
-async function loadFiles() {
+async function refreshList() {
+  if (!cfg.token) return renderList();
   try {
-    const data = await gh(contentsPath('source/_posts') + '?ref=' + encodeURIComponent(cfg.branch));
-    files = (Array.isArray(data) ? data : [])
-      .filter((f) => f.type === 'file' && /\.md$/i.test(f.name))
-      .map((f) => ({ name: f.name, sha: f.sha, size: f.size }));
+    if (mode === 'page') {
+      await loadPages();
+    } else {
+      await loadItems();
+    }
     $('#note').classList.remove('show');
   } catch (e) {
-    files = [];
     if (e.status === 404) {
-      $('#note').innerHTML = '仓库里还没有 <code>source/_posts</code> 目录。<br>' +
-        '在线后台编辑的是 Markdown 源文件，需要把本地博客的 <code>source/</code> 目录一起上传到仓库才能用。' +
-        '如果只上传了 <code>public/</code> 的静态页面，请改用本地后台。';
+      $('#note').innerHTML = '仓库里还没有 <code>' + DIRS[mode] + '</code> 目录。' +
+        '需要先把本地博客的 <code>source/</code> 传到仓库，在线后台才能使用。';
       $('#note').classList.add('show');
+      items = [];
+      renderList();
     } else {
       msg(e.message, 'error');
+    }
+  }
+}
+
+async function loadItems() {
+  try {
+    const data = await gh(contentsPath(DIRS[mode]) + '?ref=' + encodeURIComponent(cfg.branch));
+    items = (Array.isArray(data) ? data : [])
+      .filter((f) => f.type === 'file' && /\.md$/i.test(f.name))
+      .map((f) => ({ name: f.name, sha: f.sha, size: f.size }));
+  } catch (e) {
+    if (e.status !== 404) throw e;
+    items = [];
+  }
+  renderList();
+}
+
+async function loadPages() {
+  const data = await gh(contentsPath('source') + '?ref=' + encodeURIComponent(cfg.branch));
+  const dirs = (Array.isArray(data) ? data : [])
+    .filter((d) => d.type === 'dir' && d.name !== 'images' && !d.name.startsWith('_') && !d.name.startsWith('.'));
+  pages = [];
+  for (const d of dirs) {
+    try {
+      const f = await gh(contentsPath('source/' + d.name + '/index.md') + '?ref=' + encodeURIComponent(cfg.branch));
+      pages.push({ name: d.name, path: 'source/' + d.name + '/index.md', sha: f.sha });
+    } catch (e) {
+      if (e.status !== 404) throw e;
     }
   }
   renderList();
@@ -356,47 +426,87 @@ function renderList() {
   const kw = $('#search').value.trim().toLowerCase();
   const ul = $('#list');
   ul.innerHTML = '';
-  const filtered = files.filter((f) => !kw || f.name.toLowerCase().includes(kw));
+  const source = mode === 'page' ? pages : items;
+  const filtered = source.filter((f) => !kw || f.name.toLowerCase().includes(kw));
+
   if (!filtered.length) {
     const li = document.createElement('li');
-    li.textContent = kw ? '没有匹配的文章' : '暂无文章';
+    li.textContent = kw ? '没有匹配内容' : (mode === 'page' ? '暂无页面' : (mode === 'draft' ? '暂无草稿' : '暂无文章'));
     li.style.color = '#6b7280';
     ul.appendChild(li);
     return;
   }
+
   filtered.forEach((f) => {
     const li = document.createElement('li');
-    if (current && current.name === f.name) li.className = 'active';
-    const t = document.createElement('div');
-    t.className = 'li-title';
-    t.textContent = f.name.replace(/\.md$/i, '');
-    li.appendChild(t);
-    li.addEventListener('click', () => openFile(f.name).catch((e) => msg(e.message, 'error')));
+    if (current && current.mode === mode && current.name === f.name) li.className = 'active';
+
+    const title = document.createElement('div');
+    title.className = 'li-title';
+    title.textContent = f.name.replace(/\.md$/i, '');
+
+    const meta = document.createElement('div');
+    meta.className = 'li-meta';
+    if (mode === 'page') {
+      meta.textContent = '/' + f.name + '/';
+    } else {
+      const span = document.createElement('span');
+      span.textContent = mode === 'draft' ? '草稿' : 'Markdown';
+      meta.appendChild(span);
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + (mode === 'draft' ? 'draft' : 'schedule');
+      badge.textContent = mode === 'draft' ? '草稿' : '文章';
+      meta.appendChild(badge);
+    }
+
+    li.appendChild(title);
+    li.appendChild(meta);
+    li.addEventListener('click', () => openItem(f).catch((e) => msg(e.message, 'error')));
     ul.appendChild(li);
   });
 }
 
 /* ---------------- 编辑 ---------------- */
-async function openFile(name) {
-  const data = await gh(contentsPath('source/_posts/' + encodeURIComponent(name)) + '?ref=' + encodeURIComponent(cfg.branch));
+async function openItem(entry) {
+  const path = mode === 'page' ? entry.path : DIRS[mode] + '/' + entry.name;
+  const data = await gh(contentsPath(path) + '?ref=' + encodeURIComponent(cfg.branch));
   const raw = b64decode(data.content);
   const parts = splitFm(raw);
   const fields = parseFm(parts.fm);
 
-  current = { name, sha: data.sha, raw };
+  current = { mode, name: entry.name, path, sha: data.sha };
   currentFm = parts.fm;
 
   $('#empty').style.display = 'none';
   $('#editor').style.display = 'flex';
-  $('#file-name').textContent = name;
-  $('#f-title').value = fields.title || name.replace(/\.md$/i, '');
+  $('#file-name').textContent = path;
+  $('#f-title').value = fields.title || entry.name.replace(/\.md$/i, '');
   $('#f-date').value = toInputValue(fields.date);
   $('#f-categories').value = fields.categories.join(', ');
   $('#f-tags').value = fields.tags.join(', ');
   $('#f-mathjax').checked = fields.mathjax;
   $('#f-body').value = parts.body;
   dirty = false;
+  syncModeUI();
+  updateSchedule();
   renderList();
+}
+
+function syncModeUI() {
+  const isPage = mode === 'page';
+  document.querySelectorAll('.post-only').forEach((el) => el.classList.toggle('hidden', isPage));
+  $('#btn-publish').classList.toggle('hidden', mode !== 'draft');
+}
+
+function updateSchedule() {
+  const value = $('#f-date').value;
+  const el = $('#sched');
+  if (mode === 'page' || !value || !isFuture(value)) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+  el.textContent = '定时发布 · ' + new Date(value).toLocaleString('zh-CN', { hour12: false });
 }
 
 async function saveFile() {
@@ -404,31 +514,35 @@ async function saveFile() {
   const btn = $('#btn-save');
   btn.disabled = true;
   try {
-    const fields = {
-      title: $('#f-title').value.trim(),
-      date: $('#f-date').value ? $('#f-date').value.replace('T', ' ') + ':00' : '',
-      categories: splitList($('#f-categories').value),
-      tags: splitList($('#f-tags').value),
-      mathjax: $('#f-mathjax').checked
-    };
-    const body = $('#f-body').value;
-    const raw = '---\n' + patchFm(currentFm, fields) + '\n---\n\n' + body.replace(/^\n+/, '');
+    let raw;
+    if (current.mode === 'page') {
+      raw = '---\n' + patchTitle(currentFm, $('#f-title').value.trim() || current.name) + '\n---\n\n' +
+        $('#f-body').value.replace(/^\n+/, '');
+    } else {
+      const fields = {
+        title: $('#f-title').value.trim(),
+        date: $('#f-date').value ? $('#f-date').value.replace('T', ' ') + ':00' : '',
+        categories: splitList($('#f-categories').value),
+        tags: splitList($('#f-tags').value),
+        mathjax: $('#f-mathjax').checked
+      };
+      raw = '---\n' + patchFm(currentFm, fields) + '\n---\n\n' + $('#f-body').value.replace(/^\n+/, '');
+    }
 
-    const res = await gh(contentsPath('source/_posts/' + encodeURIComponent(current.name)), {
+    const res = await gh(contentsPath(current.path), {
       method: 'PUT',
       body: JSON.stringify({
-        message: '更新文章：' + (fields.title || current.name),
+        message: '更新：' + current.path,
         content: b64encode(raw),
         sha: current.sha,
         branch: cfg.branch
       })
     });
     current.sha = res.content.sha;
-    current.raw = raw;
     currentFm = splitFm(raw).fm;
     dirty = false;
-    msg('已提交到仓库', 'ok');
-    await loadFiles();
+    msg('已提交到仓库，Actions 会自动构建', 'ok');
+    await refreshList();
   } catch (e) {
     msg('保存失败：' + e.message, 'error');
   } finally {
@@ -436,49 +550,111 @@ async function saveFile() {
   }
 }
 
-async function newFile() {
+async function newItem() {
   if (!cfg.token) return msg('请先连接仓库', 'error');
-  const title = prompt('新文章标题：', '未命名文章');
+
+  if (mode === 'page') {
+    const name = prompt('页面目录名（英文，例如 links）：', 'links');
+    if (name === null) return;
+    const clean = name.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!clean) return msg('目录名只能包含字母、数字、- 和 _', 'error');
+    const title = prompt('页面标题：', clean) || clean;
+    try {
+      const raw = '---\ntitle: ' + quote(title) + '\ndate: ' + quote(nowLocal()) + '\nlayout: page\n---\n\n';
+      await gh(contentsPath('source/' + clean + '/index.md'), {
+        method: 'PUT',
+        body: JSON.stringify({ message: '新增页面：' + clean, content: b64encode(raw), branch: cfg.branch })
+      });
+      msg('页面已创建', 'ok');
+      await loadPages();
+    } catch (e) {
+      msg('创建失败：' + e.message, 'error');
+    }
+    return;
+  }
+
+  const label = mode === 'draft' ? '草稿' : '文章';
+  const title = prompt('新' + label + '标题：', mode === 'draft' ? '未命名草稿' : '未命名文章');
   if (title === null) return;
-  const clean = title.trim() || '未命名文章';
-  let name = clean.replace(/[\\/:*?"<>|]/g, '-') + '.md';
+  const clean = title.trim() || '未命名';
+  const name = clean.replace(/[\\/:*?"<>|]/g, '-') + '.md';
   try {
-    const raw = '---\ntitle: ' + quote(clean) + '\ndate: ' + quote(nowLocal()) + '\ncategories:\ntags:\n---\n\n';
-    const res = await gh(contentsPath('source/_posts/' + encodeURIComponent(name)), {
+    const fm = mode === 'draft'
+      ? 'title: ' + quote(clean) + '\n'
+      : 'title: ' + quote(clean) + '\ndate: ' + quote(nowLocal()) + '\ncategories:\ntags:\n';
+    const raw = '---\n' + fm + '---\n\n';
+    await gh(contentsPath(DIRS[mode] + '/' + name), {
       method: 'PUT',
-      body: JSON.stringify({
-        message: '新建文章：' + clean,
-        content: b64encode(raw),
-        branch: cfg.branch
-      })
+      body: JSON.stringify({ message: '新建' + label + '：' + clean, content: b64encode(raw), branch: cfg.branch })
     });
     msg('已创建', 'ok');
-    await loadFiles();
-    await openFile(name);
+    await loadItems();
+    await openItem({ name, sha: null });
   } catch (e) {
     msg('创建失败：' + e.message, 'error');
   }
 }
 
-async function deleteFile() {
+async function deleteItem() {
   if (!current) return;
-  if (!confirm('确定从仓库删除「' + current.name + '」？\nGitHub 上仍可通过提交历史找回。')) return;
+  if (!confirm('确定从仓库删除「' + current.path + '」？\nGitHub 提交历史里仍可找回。')) return;
   try {
-    await gh(contentsPath('source/_posts/' + encodeURIComponent(current.name)), {
+    await gh(contentsPath(current.path), {
       method: 'DELETE',
-      body: JSON.stringify({
-        message: '删除文章：' + current.name,
-        sha: current.sha,
-        branch: cfg.branch
-      })
+      body: JSON.stringify({ message: '删除：' + current.path, sha: current.sha, branch: cfg.branch })
     });
     current = null;
     $('#editor').style.display = 'none';
     $('#empty').style.display = 'block';
     msg('已删除', 'ok');
-    await loadFiles();
+    await refreshList();
   } catch (e) {
     msg('删除失败：' + e.message, 'error');
+  }
+}
+
+/** 草稿 → 文章：写入 _posts 后删除草稿 */
+async function publishDraft() {
+  if (!current || current.mode !== 'draft') return;
+  if (!confirm('把这篇草稿发布为文章？\n日期为空会用当前时间，未来日期则定时发布。')) return;
+  const btn = $('#btn-publish');
+  btn.disabled = true;
+  try {
+    const date = $('#f-date').value
+      ? $('#f-date').value.replace('T', ' ') + ':00'
+      : nowLocal();
+    const fields = {
+      title: $('#f-title').value.trim(),
+      date,
+      categories: splitList($('#f-categories').value),
+      tags: splitList($('#f-tags').value),
+      mathjax: $('#f-mathjax').checked
+    };
+    const raw = '---\n' + patchFm(currentFm, fields) + '\n---\n\n' + $('#f-body').value.replace(/^\n+/, '');
+    const name = current.name;
+
+    await gh(contentsPath(DIRS.post + '/' + name), {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: '发布文章：' + (fields.title || name),
+        content: b64encode(raw),
+        branch: cfg.branch
+      })
+    });
+    await gh(contentsPath(DIRS.draft + '/' + name), {
+      method: 'DELETE',
+      body: JSON.stringify({ message: '草稿转为文章：' + name, sha: current.sha, branch: cfg.branch })
+    });
+
+    current = null;
+    $('#editor').style.display = 'none';
+    $('#empty').style.display = 'block';
+    msg(isFuture(date) ? '已发布，将于 ' + date + ' 自动上线' : '已发布', 'ok');
+    await loadItems();
+  } catch (e) {
+    msg('发布失败：' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -497,7 +673,6 @@ async function uploadImage(file) {
   const base64 = String(dataUrl).split(',')[1];
   let name = file.name.replace(/[\\/:*?"<>|]/g, '-');
   let path = 'source/images/' + name;
-
   let sha;
   try {
     const existing = await gh(contentsPath(path) + '?ref=' + encodeURIComponent(cfg.branch));
@@ -507,7 +682,6 @@ async function uploadImage(file) {
   } catch (e) {
     if (e.status !== 404) throw e;
   }
-
   await gh(contentsPath(path), {
     method: 'PUT',
     body: JSON.stringify({
@@ -526,22 +700,40 @@ $('#disconnect').addEventListener('click', () => {
   localStorage.removeItem('chic-admin');
   $('#token').value = '';
   cfg = { owner: '', repo: '', branch: 'main', token: '' };
-  files = [];
-  current = null;
+  items = []; pages = []; current = null;
   renderList();
   $('#editor').style.display = 'none';
   $('#empty').style.display = 'block';
   $('#note').classList.remove('show');
   msg('已清除本地保存的凭据');
 });
-$('#new').addEventListener('click', newFile);
+$('#new').addEventListener('click', newItem);
 $('#search').addEventListener('input', renderList);
 $('#btn-save').addEventListener('click', saveFile);
-$('#btn-delete').addEventListener('click', deleteFile);
+$('#btn-delete').addEventListener('click', deleteItem);
+$('#btn-publish').addEventListener('click', publishDraft);
 $('#btn-upload').addEventListener('click', () => {
-  if (!current) return msg('先选择一篇文章', 'error');
+  if (!current || current.mode === 'page') return msg('先选择一篇文章', 'error');
   $('#file-input').click();
 });
+
+document.querySelectorAll('#mode button').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    mode = btn.dataset.mode;
+    document.querySelectorAll('#mode button').forEach((b) => b.classList.toggle('active', b === btn));
+    current = null;
+    $('#editor').style.display = 'none';
+    $('#empty').style.display = 'block';
+    $('#empty').innerHTML = mode === 'page'
+      ? '选择左侧页面编辑，例如 About。'
+      : (mode === 'draft' ? '选择或新建一篇草稿。' : '选择或新建一篇文章。');
+    syncModeUI();
+    await refreshList();
+  });
+});
+
+$('#f-date').addEventListener('change', updateSchedule);
+$('#f-date').addEventListener('input', updateSchedule);
 
 $('#file-input').addEventListener('change', async (e) => {
   const file = e.target.files[0];
@@ -562,6 +754,11 @@ $('#file-input').addEventListener('change', async (e) => {
   }
 });
 
+['#f-title', '#f-date', '#f-categories', '#f-tags', '#f-body'].forEach((sel) => {
+  $(sel).addEventListener('input', () => { dirty = true; });
+});
+$('#f-mathjax').addEventListener('change', () => { dirty = true; });
+
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
@@ -573,14 +770,10 @@ window.addEventListener('beforeunload', (e) => {
   if (dirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
-['#f-title', '#f-date', '#f-categories', '#f-tags', '#f-body'].forEach((sel) => {
-  $(sel).addEventListener('input', () => { dirty = true; });
-});
-$('#f-mathjax').addEventListener('change', () => { dirty = true; });
-
 /* ---------------- 启动 ---------------- */
 loadConfig();
 updateSiteLink();
+syncModeUI();
 renderList();
 if (cfg.owner && cfg.token) connect();
 </script>

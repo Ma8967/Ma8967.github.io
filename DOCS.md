@@ -336,6 +336,27 @@ npm run admin
 - `Ctrl + S` 快捷保存
 - 保留你在 front-matter 里手写的其他字段（如 `comments: false`）
 
+**草稿**
+
+- 左侧顶部「文章 / 草稿」切换
+- 草稿保存在 `source/_drafts/`，不会出现在网站上
+- 「发布为文章」把草稿移入 `source/_posts/`，日期为空时自动填当前时间
+
+**定时上传**
+
+- 把「日期」设为未来时间，工具栏会出现「定时发布」标记
+- 到点后由 GitHub Actions 的定时构建（每 30 分钟）自动上线，可能有几分钟到半小时延迟
+- 本地生成不会包含未来日期的文章（`_config.yml` 里 `future: false`）
+
+**导入**
+
+- 点「导入」选择本地 `.md` 文件，直接复制进当前的文章或草稿目录
+
+**页面**
+
+- 「页面」标签页可编辑 `source/about/index.md` 等独立页面
+- 页面只改标题和正文，`layout`、日期等字段原样保留
+
 **图片**
 
 - 上传到 `source/images/`
@@ -427,12 +448,11 @@ Token 保存在浏览器 localStorage，公用电脑使用后点「清除」。
 
 在线后台编辑的是 Markdown 源文件。如果你只上传了 `public/` 里的 HTML，仓库里没有源文件，后台会提示目录不存在。这种情况请用本地后台。
 
-**限制二：提交后不会自动生成网页**
+**限制二：提交后需要等自动构建**
 
-它只提交源文件，GitHub Pages 上显示的仍是上次生成的 HTML。要让改动上线，二选一：
+仓库已启用 GitHub Actions，提交后会自动构建并发布，通常 1～2 分钟上线。不要再去手动上传 `public/`。
 
-- 本地拉取源文件 → `npx hexo generate` → 重新上传 `public/`
-- 启用 GitHub Actions 自动构建（见 9.7）
+在线后台现在支持：文章、草稿（含「发布为文章」）、定时发布（未来日期）、页面编辑（About 等）、图片上传。
 
 ### 8.5 托管在线后台（可选）
 
@@ -517,28 +537,35 @@ css/   js/   fonts/   image/   favicon.ico   .nojekyll
 
 访问 `https://你的用户名.github.io`。
 
-### 9.6 更新文章
+### 9.6 更新文章（当前使用自动构建）
 
-每次更新重复：
+本地写作后推送即可上线：
 
 ```powershell
 cd Y:\my-blog
-npx hexo clean
-npx hexo generate
+npm run admin          # 写文章、草稿、页面
+git add .
+git commit -m "update"
+git push
 ```
 
-然后把 `public/` 里的内容重新上传，覆盖旧文件。
+或者在在线后台（`admin-online/index.html`）保存，同样会自动触发构建。
 
-GitHub 网页上传同名文件会自动覆盖。
+推送后打开仓库 **Actions** 看 `Deploy Hexo`，1～2 分钟后网站更新。
 
-### 9.7 可选的自动构建（GitHub Actions）
+> 不要再手动上传 `public/`，会和自动构建互相覆盖。
 
-如果嫌手动上传麻烦，或者想让**在线后台提交即上线**：
+### 9.7 当前仓库的自动构建配置
 
-1. 工作流已启用：`Y:\my-blog\.github\workflows\deploy.yml`
-2. 仓库 Settings → Pages → Source 改选 **GitHub Actions**
-3. 把整个项目源码推到仓库（`public/` 和 `node_modules/` 已被 `.gitignore` 排除，不会上传）
-4. 之后每次 push 自动构建并发布
+| 项目 | 值 |
+| --- | --- |
+| 工作流文件 | `.github/workflows/deploy.yml` |
+| 触发条件 | push 到 `main`、每 30 分钟定时、手动触发 |
+| Pages Source | Settings → Pages → **GitHub Actions** |
+| 构建环境 | Ubuntu + Node 22 + `npm ci` |
+| 定时构建用途 | 让「定时上传」的文章到点自动上线 |
+
+> GitHub 的定时任务可能延迟几分钟到半小时；仓库连续 60 天没有提交，定时任务会被自动暂停，届时手动点一次 **Run workflow** 即可恢复。
 
 ```powershell
 cd Y:\my-blog

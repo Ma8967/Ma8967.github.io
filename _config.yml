@@ -43,7 +43,8 @@ filename_case: 0
 render_drafts: false
 post_asset_folder: false
 relative_link: false
-future: true
+## false = 未来日期的文章不发布，用于「定时上传」
+future: false
 syntax_highlighter: highlight.js
 highlight:
   line_number: true

@@ -2,7 +2,7 @@
 
 /**
  * 本地博客管理后台
- * 只监听 127.0.0.1，不对外网暴露；直接操作 source/_posts 和配置文件。
+ * 只监听 127.0.0.1，不对外网暴露；直接操作 source/ 下的源文件。
  * 启动：node admin/server.js   或   npm run admin
  */
 
@@ -15,8 +15,10 @@ const marked = markedModule.marked || markedModule
 const { execFile } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
-const POSTS_DIR = path.join(ROOT, 'source', '_posts')
-const IMAGES_DIR = path.join(ROOT, 'source', 'images')
+const SOURCE_DIR = path.join(ROOT, 'source')
+const POSTS_DIR = path.join(SOURCE_DIR, '_posts')
+const DRAFTS_DIR = path.join(SOURCE_DIR, '_drafts')
+const IMAGES_DIR = path.join(SOURCE_DIR, 'images')
 const TRASH_DIR = path.join(ROOT, '.trash')
 const SITE_CONFIG = path.join(ROOT, '_config.yml')
 const THEME_CONFIG = path.join(ROOT, 'themes', 'Chic', '_config.yml')
@@ -36,6 +38,14 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true })
 }
 
+function kindDir(kind) {
+  return kind === 'draft' ? DRAFTS_DIR : POSTS_DIR
+}
+
+function normalizeKind(value) {
+  return value === 'draft' ? 'draft' : 'post'
+}
+
 function sanitizeName(name, ext) {
   const base = path.basename(String(name || '')).trim()
   if (!base || base === '.' || base === '..' || /[\\/:*?"<>|]/.test(base)) {
@@ -44,11 +54,22 @@ function sanitizeName(name, ext) {
   return ext && !base.toLowerCase().endsWith(ext) ? base + ext : base
 }
 
-function postFile(name) {
-  return path.join(POSTS_DIR, sanitizeName(name, '.md'))
+function itemFile(name, kind) {
+  return path.join(kindDir(kind), sanitizeName(name, '.md'))
 }
 
-/** 只解析标题、日期、分类、标签，其余原样保留，避免破坏用户手写的 front-matter */
+function uniqueFile(dir, filename) {
+  const ext = path.extname(filename)
+  const stem = path.basename(filename, ext)
+  let candidate = path.join(dir, filename)
+  let i = 1
+  while (fs.existsSync(candidate)) {
+    candidate = path.join(dir, `${stem}-${i}${ext}`)
+    i++
+  }
+  return candidate
+}
+
 function parseFrontMatter(raw) {
   const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(raw)
   if (!m) return { data: {}, body: raw }
@@ -70,34 +91,6 @@ function composeMarkdown(data, body) {
   return `---\n${fm}\n---\n\n${cleanBody}`
 }
 
-function listPosts() {
-  ensureDir(POSTS_DIR)
-  return fs
-    .readdirSync(POSTS_DIR)
-    .filter((f) => f.toLowerCase().endsWith('.md') && !f.startsWith('.'))
-    .map((f) => {
-      const full = path.join(POSTS_DIR, f)
-      const stat = fs.statSync(full)
-      const raw = fs.readFileSync(full, 'utf8')
-      const { data } = parseFrontMatter(raw)
-      return {
-        name: f,
-        title: data.title ? String(data.title) : f.replace(/\.md$/i, ''),
-        date: data.date ? String(data.date) : '',
-        categories: toArray(data.categories),
-        tags: toArray(data.tags),
-        mtime: stat.mtimeMs,
-        size: stat.size
-      }
-    })
-    .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.mtime - a.mtime)
-}
-
-function toArray(value) {
-  if (value === undefined || value === null || value === '') return []
-  return Array.isArray(value) ? value.map(String) : [String(value)]
-}
-
 function nowStamp() {
   const d = new Date()
   const p = (n) => String(n).padStart(2, '0')
@@ -107,11 +100,57 @@ function nowStamp() {
   }
 }
 
-/* -------------------------------- 文章 -------------------------------- */
+/** 日期是否在未来（用于「定时上传」标记） */
+function isScheduled(dateValue) {
+  if (!dateValue) return false
+  const t = new Date(String(dateValue).replace(' ', 'T')).getTime()
+  return Number.isFinite(t) && t > Date.now()
+}
+
+function toArray(value) {
+  if (value === undefined || value === null || value === '') return []
+  return Array.isArray(value) ? value.map(String) : [String(value)]
+}
+
+function listItems(kind) {
+  const dir = kindDir(kind)
+  ensureDir(dir)
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.toLowerCase().endsWith('.md') && !f.startsWith('.'))
+    .map((f) => {
+      const full = path.join(dir, f)
+      const stat = fs.statSync(full)
+      const raw = fs.readFileSync(full, 'utf8')
+      const { data } = parseFrontMatter(raw)
+      return {
+        name: f,
+        kind,
+        title: data.title ? String(data.title) : f.replace(/\.md$/i, ''),
+        date: data.date ? String(data.date) : '',
+        categories: toArray(data.categories),
+        tags: toArray(data.tags),
+        scheduled: kind === 'post' && isScheduled(data.date),
+        mtime: stat.mtimeMs,
+        size: stat.size
+      }
+    })
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.mtime - a.mtime)
+}
+
+function moveToTrash(file) {
+  ensureDir(TRASH_DIR)
+  const target = path.join(TRASH_DIR, `${path.basename(file)}.${nowStamp().file}.bak`)
+  fs.renameSync(file, target)
+  return path.basename(target)
+}
+
+/* -------------------------------- 文章 / 草稿 -------------------------------- */
 
 app.get('/api/posts', (req, res) => {
   try {
-    res.json({ posts: listPosts() })
+    const kind = normalizeKind(req.query.kind)
+    res.json({ kind, posts: listItems(kind) })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
@@ -119,11 +158,12 @@ app.get('/api/posts', (req, res) => {
 
 app.get('/api/posts/:name', (req, res) => {
   try {
-    const file = postFile(req.params.name)
-    if (!fs.existsSync(file)) return res.status(404).json({ error: '文章不存在' })
+    const kind = normalizeKind(req.query.kind)
+    const file = itemFile(req.params.name, kind)
+    if (!fs.existsSync(file)) return res.status(404).json({ error: '文件不存在' })
     const raw = fs.readFileSync(file, 'utf8')
     const { data, body } = parseFrontMatter(raw)
-    res.json({ name: path.basename(file), raw, data, body })
+    res.json({ name: path.basename(file), kind, raw, data, body })
   } catch (e) {
     res.status(400).json({ error: e.message })
   }
@@ -131,25 +171,24 @@ app.get('/api/posts/:name', (req, res) => {
 
 app.post('/api/posts', (req, res) => {
   try {
-    ensureDir(POSTS_DIR)
-    const title = String(req.body.title || '').trim() || '未命名文章'
+    const kind = normalizeKind(req.body.kind)
+    const dir = kindDir(kind)
+    ensureDir(dir)
+
+    const title = String(req.body.title || '').trim() || (kind === 'draft' ? '未命名草稿' : '未命名文章')
     let base = sanitizeName(req.body.filename || title.replace(/[\\/:*?"<>|]/g, '-'), '')
     if (!base.toLowerCase().endsWith('.md')) base += '.md'
-    let file = path.join(POSTS_DIR, base)
-    let i = 1
-    while (fs.existsSync(file)) {
-      file = path.join(POSTS_DIR, base.replace(/\.md$/i, `-${i}.md`))
-      i++
-    }
-    const stamp = nowStamp()
-    const data = {
-      title,
-      date: stamp.display,
-      categories: [],
-      tags: []
+
+    const file = uniqueFile(dir, base)
+    const data = { title }
+    // 草稿不写日期，发布时再定；文章写当前时间
+    if (kind === 'post') {
+      data.date = nowStamp().display
+      data.categories = []
+      data.tags = []
     }
     fs.writeFileSync(file, composeMarkdown(data, ''), 'utf8')
-    res.json({ ok: true, name: path.basename(file) })
+    res.json({ ok: true, kind, name: path.basename(file) })
   } catch (e) {
     res.status(400).json({ error: e.message })
   }
@@ -157,12 +196,13 @@ app.post('/api/posts', (req, res) => {
 
 app.put('/api/posts/:name', (req, res) => {
   try {
-    const file = postFile(req.params.name)
-    if (!fs.existsSync(file)) return res.status(404).json({ error: '文章不存在' })
+    const kind = normalizeKind(req.query.kind)
+    const file = itemFile(req.params.name, kind)
+    if (!fs.existsSync(file)) return res.status(404).json({ error: '文件不存在' })
     const data = req.body.data || {}
     if (!data.title) data.title = path.basename(file, '.md')
     fs.writeFileSync(file, composeMarkdown(data, req.body.body || ''), 'utf8')
-    res.json({ ok: true, name: path.basename(file) })
+    res.json({ ok: true, kind, name: path.basename(file), scheduled: kind === 'post' && isScheduled(data.date) })
   } catch (e) {
     res.status(400).json({ error: e.message })
   }
@@ -170,13 +210,119 @@ app.put('/api/posts/:name', (req, res) => {
 
 app.delete('/api/posts/:name', (req, res) => {
   try {
-    const file = postFile(req.params.name)
-    if (!fs.existsSync(file)) return res.status(404).json({ error: '文章不存在' })
-    // 不物理删除，移到 .trash 里，误删可找回
-    ensureDir(TRASH_DIR)
-    const target = path.join(TRASH_DIR, `${path.basename(file)}.${nowStamp().file}.bak`)
-    fs.renameSync(file, target)
-    res.json({ ok: true, trashed: path.basename(target) })
+    const kind = normalizeKind(req.query.kind)
+    const file = itemFile(req.params.name, kind)
+    if (!fs.existsSync(file)) return res.status(404).json({ error: '文件不存在' })
+    const trashed = moveToTrash(file)
+    res.json({ ok: true, kind, trashed })
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
+})
+
+/** 把草稿发布成文章：日期为空时填当前时间；日期在未来则保持定时 */
+app.post('/api/publish', (req, res) => {
+  try {
+    const name = sanitizeName(req.body.name, '.md')
+    const draftFile = path.join(DRAFTS_DIR, name)
+    if (!fs.existsSync(draftFile)) return res.status(404).json({ error: '草稿不存在' })
+
+    ensureDir(POSTS_DIR)
+    const raw = fs.readFileSync(draftFile, 'utf8')
+    const { data, body } = parseFrontMatter(raw)
+    if (!data.date) data.date = nowStamp().display
+    if (!Array.isArray(data.categories)) delete data.categories
+    if (!Array.isArray(data.tags)) delete data.tags
+
+    const target = uniqueFile(POSTS_DIR, name)
+    fs.writeFileSync(target, composeMarkdown(data, body), 'utf8')
+    moveToTrash(draftFile)
+
+    res.json({
+      ok: true,
+      name: path.basename(target),
+      scheduled: isScheduled(data.date),
+      date: String(data.date)
+    })
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
+})
+
+/** 导入本地 Markdown 文件（内容由前端读取后传入） */
+app.post('/api/import', (req, res) => {
+  try {
+    const kind = normalizeKind(req.body.kind)
+    const dir = kindDir(kind)
+    ensureDir(dir)
+
+    const name = sanitizeName(req.body.name || 'imported.md', '.md')
+    const content = String(req.body.content || '')
+    const parsed = parseFrontMatter(content)
+
+    const data = Object.assign({}, parsed.data)
+    if (!data.title) data.title = path.basename(name, '.md')
+    if (!data.date && kind === 'post') data.date = nowStamp().display
+
+    const target = uniqueFile(dir, name)
+    fs.writeFileSync(target, composeMarkdown(data, parsed.body), 'utf8')
+    res.json({ ok: true, kind, name: path.basename(target) })
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
+})
+
+/* -------------------------------- 独立页面 -------------------------------- */
+
+const RESERVED_DIRS = new Set(['_posts', '_drafts', 'images'])
+
+function pageDir(name) {
+  const base = String(name || '').trim()
+  if (!base || /[\\/:*?"<>|]/.test(base) || base.startsWith('_') || base.startsWith('.')) {
+    throw new Error('页面名不合法')
+  }
+  const dir = path.join(SOURCE_DIR, base)
+  if (!fs.existsSync(path.join(dir, 'index.md'))) throw new Error('页面不存在')
+  return dir
+}
+
+app.get('/api/pages', (req, res) => {
+  const pages = []
+  if (fs.existsSync(SOURCE_DIR)) {
+    fs.readdirSync(SOURCE_DIR, { withFileTypes: true }).forEach((entry) => {
+      if (!entry.isDirectory() || RESERVED_DIRS.has(entry.name)) return
+      const file = path.join(SOURCE_DIR, entry.name, 'index.md')
+      if (!fs.existsSync(file)) return
+      const { data } = parseFrontMatter(fs.readFileSync(file, 'utf8'))
+      pages.push({
+        name: entry.name,
+        title: data.title ? String(data.title) : entry.name,
+        layout: data.layout ? String(data.layout) : 'page'
+      })
+    })
+  }
+  res.json({ pages })
+})
+
+app.get('/api/pages/:name', (req, res) => {
+  try {
+    const dir = pageDir(req.params.name)
+    const file = path.join(dir, 'index.md')
+    const raw = fs.readFileSync(file, 'utf8')
+    const { data, body } = parseFrontMatter(raw)
+    res.json({ name: req.params.name, raw, data, body })
+  } catch (e) {
+    res.status(404).json({ error: e.message })
+  }
+})
+
+app.put('/api/pages/:name', (req, res) => {
+  try {
+    const dir = pageDir(req.params.name)
+    const data = req.body.data || {}
+    if (!data.title) data.title = req.params.name
+    fs.writeFileSync(path.join(dir, 'index.md'), composeMarkdown(data, req.body.body || ''), 'utf8')
+    res.json({ ok: true, name: req.params.name })
   } catch (e) {
     res.status(400).json({ error: e.message })
   }
@@ -206,15 +352,10 @@ app.post('/api/upload', (req, res) => {
     if (!data) throw new Error('缺少文件内容')
     const base = sanitizeName(name || `image-${nowStamp().file}.png`, '')
     if (!IMAGE_EXT.test(base)) throw new Error('只支持图片格式')
-    let filename = base
-    let i = 1
-    while (fs.existsSync(path.join(IMAGES_DIR, filename))) {
-      const ext = path.extname(base)
-      filename = `${path.basename(base, ext)}-${i}${ext}`
-      i++
-    }
+    const target = uniqueFile(IMAGES_DIR, base)
     const buffer = Buffer.from(String(data).replace(/^data:[^;]+;base64,/, ''), 'base64')
-    fs.writeFileSync(path.join(IMAGES_DIR, filename), buffer)
+    fs.writeFileSync(target, buffer)
+    const filename = path.basename(target)
     res.json({ ok: true, name: filename, url: `/images/${encodeURIComponent(filename)}` })
   } catch (e) {
     res.status(400).json({ error: e.message })
@@ -225,8 +366,7 @@ app.delete('/api/images/:name', (req, res) => {
   try {
     const file = path.join(IMAGES_DIR, sanitizeName(req.params.name))
     if (!fs.existsSync(file)) return res.status(404).json({ error: '图片不存在' })
-    ensureDir(TRASH_DIR)
-    fs.renameSync(file, path.join(TRASH_DIR, `${path.basename(file)}.${nowStamp().file}.bak`))
+    moveToTrash(file)
     res.json({ ok: true })
   } catch (e) {
     res.status(400).json({ error: e.message })
@@ -246,7 +386,6 @@ app.put('/api/settings', (req, res) => {
   try {
     const target = req.body.target === 'theme' ? 'theme' : 'site'
     const content = String(req.body.content || '')
-    // 先校验 YAML，写坏配置文件会导致整个站点构建失败
     const parsed = yaml.load(content)
     if (!parsed || typeof parsed !== 'object') throw new Error('配置内容不是合法的 YAML 对象')
     fs.writeFileSync(target === 'theme' ? THEME_CONFIG : SITE_CONFIG, content, 'utf8')
@@ -289,10 +428,18 @@ app.get('/api/status', (req, res) => {
   } catch (e) {
     /* ignore */
   }
+  const count = (dir) =>
+    fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md')).length : 0
   res.json({
     root: ROOT,
     hexo: hexoVersion,
-    posts: fs.existsSync(POSTS_DIR) ? fs.readdirSync(POSTS_DIR).filter((f) => f.endsWith('.md')).length : 0,
+    posts: count(POSTS_DIR),
+    drafts: count(DRAFTS_DIR),
+    pages: fs.existsSync(SOURCE_DIR)
+      ? fs.readdirSync(SOURCE_DIR).filter((d) => {
+          try { return !!pageDir(d) } catch (e) { return false }
+        }).length
+      : 0,
     lastBuild,
     building
   })
