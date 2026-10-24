@@ -30,6 +30,8 @@ let building = false
 
 const app = express()
 app.use(express.json({ limit: '30mb' }))
+// 复用主题自带的兰亭字体，让后台和博客保持同一套字型
+app.use('/assets/fonts', express.static(path.join(ROOT, 'themes', 'Chic', 'source', 'fonts')))
 app.use(express.static(path.join(__dirname, 'public')))
 
 /* ------------------------------ 工具函数 ------------------------------ */
