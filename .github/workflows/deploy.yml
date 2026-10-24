@@ -1,0 +1,48 @@
+# 可选：GitHub Actions 自动构建部署
+#
+# 你当前选择的是「手动上传 public」，所以这个文件默认不生效。
+# 如果以后想让在线后台改完文章自动上线，把它移动到：
+#     Y:\my-blog\.github\workflows\deploy.yml
+# 然后在仓库 Settings → Pages → Source 选择 "GitHub Actions"。
+# 注意：启用后每次 push 都会自动构建并覆盖线上内容，手动上传就没必要了。
+
+name: Deploy Hexo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx hexo generate
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

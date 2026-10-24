@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chic 在线后台</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#fff; --border:#e2e5e9; --text:#1f2328;
+    --muted:#6b7280; --accent:#3b6ef6; --danger:#d93a3a; --ok:#1a9f5c;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+    background:var(--bg);color:var(--text);font-size:14px;display:flex;flex-direction:column;overflow:hidden
+  }
+  header{
+    flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--border);
+    padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap
+  }
+  .brand{font-weight:600;font-size:15px;white-space:nowrap}
+  .brand span{color:var(--muted);font-weight:400;font-size:12px;margin-left:4px}
+  header input{
+    height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;
+    font-size:13px;outline:none;min-width:0
+  }
+  header input:focus{border-color:var(--accent)}
+  #token{width:200px}
+  #owner{width:150px}
+  #repo{width:160px}
+  #branch{width:80px}
+  button{
+    height:32px;padding:0 14px;border:1px solid var(--border);background:#fff;border-radius:6px;
+    font-size:13px;cursor:pointer;color:var(--text);white-space:nowrap
+  }
+  button:hover{background:#f4f6f9}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:#2f5fe0}
+  button.danger{color:var(--danger);border-color:#f0c9c9}
+  button.danger:hover{background:#fdf2f2}
+  .spacer{margin-left:auto}
+  main{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:290px 1fr}
+  aside{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+  .aside-head{padding:10px;border-bottom:1px solid var(--border);display:flex;gap:8px}
+  .aside-head input{flex:1;height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;outline:none;min-width:0}
+  #list{list-style:none;margin:0;padding:6px;overflow-y:auto;flex:1}
+  #list li{padding:10px;border-radius:6px;cursor:pointer;border:1px solid transparent}
+  #list li:hover{background:#f6f8fb}
+  #list li.active{background:#eaf0ff;border-color:#cddcff}
+  .li-title{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .li-meta{font-size:11.5px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  section.editor{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)}
+  #empty{margin:auto;color:var(--muted);font-size:13px;text-align:center;line-height:1.9;padding:20px}
+  #editor{display:none;flex-direction:column;height:100%;min-height:0}
+  .meta{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;padding:14px 18px}
+  .meta label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+  .meta input{height:34px;padding:0 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;outline:none;background:#fbfcfd}
+  .meta input:focus{border-color:var(--accent);background:#fff}
+  .toolbar{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:#fafbfc}
+  .file{font-family:Consolas,monospace;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+  .check{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);cursor:pointer}
+  textarea{
+    flex:1;border:0;outline:none;resize:none;padding:18px;font-size:13.5px;line-height:1.75;
+    font-family:Consolas,"Courier New",monospace;color:var(--text);min-height:0
+  }
+  #msg{
+    position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);
+    background:#1f2328;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;
+    opacity:0;pointer-events:none;transition:all .18s;z-index:99;max-width:80vw
+  }
+  #msg.show{opacity:1;transform:translate(-50%,0)}
+  #msg.error{background:var(--danger)}
+  #msg.ok{background:var(--ok)}
+  .note{padding:10px 14px;margin:12px 18px 0;border-radius:8px;background:#fff8e6;border:1px solid #f0e0b0;color:#7a5b00;font-size:12.5px;line-height:1.7;display:none}
+  .note.show{display:block}
+  @media (max-width:860px){
+    main{grid-template-columns:1fr;grid-template-rows:200px 1fr}
+    aside{border-right:0;border-bottom:1px solid var(--border)}
+    .meta{grid-template-columns:1fr 1fr}
+    #token{width:140px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Chic<span>在线后台</span></div>
+  <input id="owner" placeholder="GitHub 用户名">
+  <input id="repo" placeholder="仓库名">
+  <input id="branch" placeholder="分支" value="main">
+  <input id="token" type="password" placeholder="Personal Access Token">
+  <button id="connect" class="primary">连接</button>
+  <button id="disconnect">清除</button>
+  <span class="spacer"></span>
+  <a id="site-link" href="#" target="_blank" rel="noreferrer" style="font-size:13px;color:var(--accent);text-decoration:none">打开站点 ↗</a>
+</header>
+
+<div id="note" class="note"></div>
+
+<main>
+  <aside>
+    <div class="aside-head">
+      <input id="search" placeholder="搜索标题…">
+      <button id="new">新建</button>
+    </div>
+    <ul id="list"></ul>
+  </aside>
+
+  <section class="editor">
+    <div id="empty">先在顶部填写仓库信息并连接，<br>然后从左侧选择文章开始编辑。</div>
+
+    <div id="editor">
+      <div class="meta">
+        <label>标题<input id="f-title"></label>
+        <label>日期<input id="f-date" type="datetime-local"></label>
+        <label>分类<input id="f-categories" placeholder="逗号分隔"></label>
+        <label>标签<input id="f-tags" placeholder="逗号分隔"></label>
+      </div>
+      <div class="toolbar">
+        <span class="file" id="file-name"></span>
+        <label class="check"><input type="checkbox" id="f-mathjax"> MathJax</label>
+        <span class="spacer"></span>
+        <button id="btn-upload">插入图片</button>
+        <button id="btn-delete" class="danger">删除</button>
+        <button id="btn-save" class="primary">保存到仓库</button>
+      </div>
+      <textarea id="f-body" spellcheck="false" placeholder="用 Markdown 写正文…"></textarea>
+    </div>
+  </section>
+</main>
+
+<input type="file" id="file-input" accept="image/*" hidden>
+<div id="msg"></div>
+
+<script>
+'use strict';
+
+const $ = (s) => document.querySelector(s);
+const API = 'https://api.github.com';
+
+let cfg = { owner: '', repo: '', branch: 'main', token: '' };
+let files = [];          // [{name, sha, size}]
+let current = null;      // {name, sha, raw}
+let currentFm = '';      // 原始 front-matter 文本
+let dirty = false;
+
+/* ---------------- 消息 ---------------- */
+let msgTimer;
+function msg(text, type) {
+  const el = $('#msg');
+  el.textContent = text;
+  el.className = 'show' + (type ? ' ' + type : '');
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(() => { el.className = ''; }, 3000);
+}
+
+/* ---------------- 配置 ---------------- */
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('chic-admin') || '{}');
+    cfg = Object.assign(cfg, saved);
+  } catch (e) {}
+  $('#owner').value = cfg.owner || '';
+  $('#repo').value = cfg.repo || '';
+  $('#branch').value = cfg.branch || 'main';
+  $('#token').value = cfg.token || '';
+}
+function saveConfig() {
+  localStorage.setItem('chic-admin', JSON.stringify(cfg));
+}
+function updateSiteLink() {
+  $('#site-link').href = cfg.owner ? 'https://' + cfg.owner + '.github.io/' : '#';
+}
+
+/* ---------------- GitHub API ---------------- */
+async function gh(path, options = {}) {
+  const res = await fetch(API + path, {
+    ...options,
+    headers: {
+      'Accept': 'application/vnd.github+json',
+      'Authorization': 'Bearer ' + cfg.token,
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(options.headers || {})
+    }
+  });
+  let body = null;
+  const text = await res.text();
+  if (text) { try { body = JSON.parse(text); } catch (e) { body = text; } }
+  if (!res.ok) {
+    const m = (body && body.message) || res.statusText;
+    const err = new Error(m + ' (' + res.status + ')');
+    err.status = res.status;
+    throw err;
+  }
+  return body;
+}
+
+const contentsPath = (p) => `/repos/${cfg.owner}/${cfg.repo}/contents/${p}`;
+
+function b64decode(b64) {
+  const bin = atob(String(b64).replace(/\s/g, ''));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function b64encode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+}
+
+/* ---------------- front-matter ---------------- */
+function splitFm(raw) {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(raw);
+  return m ? { fm: m[1], body: m[2] } : { fm: '', body: raw };
+}
+
+function unquote(v) {
+  v = String(v || '').trim();
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    return v.slice(1, -1).replace(/\\"/g, '"');
+  }
+  return v;
+}
+
+function quote(v) {
+  return '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+}
+
+function collectList(lines, index) {
+  const line = lines[index];
+  const inline = line.replace(/^\s*\w+\s*:\s*/, '').trim();
+  if (inline.startsWith('[')) {
+    return inline.replace(/^\[|\]$/g, '').split(',').map((s) => unquote(s)).filter(Boolean);
+  }
+  const out = [];
+  for (let i = index + 1; i < lines.length; i++) {
+    const m = /^\s*-\s+(.*)$/.exec(lines[i]);
+    if (!m) break;
+    out.push(unquote(m[1]));
+  }
+  return out;
+}
+
+function parseFm(fm) {
+  const out = { title: '', date: '', categories: [], tags: [], mathjax: false };
+  if (!fm) return out;
+  const lines = fm.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    let m;
+    if ((m = /^title\s*:\s*(.*)$/.exec(line))) out.title = unquote(m[1]);
+    else if ((m = /^date\s*:\s*(.*)$/.exec(line))) out.date = unquote(m[1]).replace('T', ' ').slice(0, 19);
+    else if (/^categories\s*:/.test(line)) out.categories = collectList(lines, i);
+    else if (/^tags\s*:/.test(line)) out.tags = collectList(lines, i);
+    else if ((m = /^mathjax\s*:\s*(true|false)/.exec(line))) out.mathjax = m[1] === 'true';
+  }
+  return out;
+}
+
+/** 只替换 title/date/categories/tags/mathjax，其余键原样保留 */
+function patchFm(fm, fields) {
+  const lines = fm ? fm.split(/\r?\n/) : [];
+  const kept = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^(title|date|mathjax)\s*:/.test(line)) continue;
+    if (/^(categories|tags)\s*:/.test(line)) {
+      let j = i + 1;
+      while (j < lines.length && /^\s*-\s+/.test(lines[j])) j++;
+      i = j - 1;
+      continue;
+    }
+    kept.push(line);
+  }
+  const out = [];
+  if (fields.title) out.push('title: ' + quote(fields.title));
+  if (fields.date) out.push('date: ' + quote(fields.date));
+  if (fields.categories.length) {
+    out.push('categories:');
+    fields.categories.forEach((c) => out.push('  - ' + quote(c)));
+  }
+  if (fields.tags.length) {
+    out.push('tags:');
+    fields.tags.forEach((t) => out.push('  - ' + quote(t)));
+  }
+  if (fields.mathjax) out.push('mathjax: true');
+  return out.concat(kept.filter((l) => l.trim() !== '')).join('\n');
+}
+
+function splitList(v) {
+  return String(v || '').split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+}
+
+function toInputValue(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(v || ''));
+  return m ? m[1] + '-' + m[2] + '-' + m[3] + 'T' + m[4] + ':' + m[5] : '';
+}
+
+function nowLocal() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+    ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':00';
+}
+
+/* ---------------- 列表 ---------------- */
+async function connect() {
+  cfg.owner = $('#owner').value.trim();
+  cfg.repo = $('#repo').value.trim() || (cfg.owner + '.github.io');
+  cfg.branch = $('#branch').value.trim() || 'main';
+  cfg.token = $('#token').value.trim();
+  if (!cfg.owner || !cfg.token) return msg('请填写用户名和 Token', 'error');
+
+  const btn = $('#connect');
+  btn.disabled = true;
+  btn.textContent = '连接中…';
+  try {
+    await gh(`/repos/${cfg.owner}/${cfg.repo}`);
+    saveConfig();
+    updateSiteLink();
+    await loadFiles();
+    msg('连接成功', 'ok');
+  } catch (e) {
+    msg('连接失败：' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '连接';
+  }
+}
+
+async function loadFiles() {
+  try {
+    const data = await gh(contentsPath('source/_posts') + '?ref=' + encodeURIComponent(cfg.branch));
+    files = (Array.isArray(data) ? data : [])
+      .filter((f) => f.type === 'file' && /\.md$/i.test(f.name))
+      .map((f) => ({ name: f.name, sha: f.sha, size: f.size }));
+    $('#note').classList.remove('show');
+  } catch (e) {
+    files = [];
+    if (e.status === 404) {
+      $('#note').innerHTML = '仓库里还没有 <code>source/_posts</code> 目录。<br>' +
+        '在线后台编辑的是 Markdown 源文件，需要把本地博客的 <code>source/</code> 目录一起上传到仓库才能用。' +
+        '如果只上传了 <code>public/</code> 的静态页面，请改用本地后台。';
+      $('#note').classList.add('show');
+    } else {
+      msg(e.message, 'error');
+    }
+  }
+  renderList();
+}
+
+function renderList() {
+  const kw = $('#search').value.trim().toLowerCase();
+  const ul = $('#list');
+  ul.innerHTML = '';
+  const filtered = files.filter((f) => !kw || f.name.toLowerCase().includes(kw));
+  if (!filtered.length) {
+    const li = document.createElement('li');
+    li.textContent = kw ? '没有匹配的文章' : '暂无文章';
+    li.style.color = '#6b7280';
+    ul.appendChild(li);
+    return;
+  }
+  filtered.forEach((f) => {
+    const li = document.createElement('li');
+    if (current && current.name === f.name) li.className = 'active';
+    const t = document.createElement('div');
+    t.className = 'li-title';
+    t.textContent = f.name.replace(/\.md$/i, '');
+    li.appendChild(t);
+    li.addEventListener('click', () => openFile(f.name).catch((e) => msg(e.message, 'error')));
+    ul.appendChild(li);
+  });
+}
+
+/* ---------------- 编辑 ---------------- */
+async function openFile(name) {
+  const data = await gh(contentsPath('source/_posts/' + encodeURIComponent(name)) + '?ref=' + encodeURIComponent(cfg.branch));
+  const raw = b64decode(data.content);
+  const parts = splitFm(raw);
+  const fields = parseFm(parts.fm);
+
+  current = { name, sha: data.sha, raw };
+  currentFm = parts.fm;
+
+  $('#empty').style.display = 'none';
+  $('#editor').style.display = 'flex';
+  $('#file-name').textContent = name;
+  $('#f-title').value = fields.title || name.replace(/\.md$/i, '');
+  $('#f-date').value = toInputValue(fields.date);
+  $('#f-categories').value = fields.categories.join(', ');
+  $('#f-tags').value = fields.tags.join(', ');
+  $('#f-mathjax').checked = fields.mathjax;
+  $('#f-body').value = parts.body;
+  dirty = false;
+  renderList();
+}
+
+async function saveFile() {
+  if (!current) return;
+  const btn = $('#btn-save');
+  btn.disabled = true;
+  try {
+    const fields = {
+      title: $('#f-title').value.trim(),
+      date: $('#f-date').value ? $('#f-date').value.replace('T', ' ') + ':00' : '',
+      categories: splitList($('#f-categories').value),
+      tags: splitList($('#f-tags').value),
+      mathjax: $('#f-mathjax').checked
+    };
+    const body = $('#f-body').value;
+    const raw = '---\n' + patchFm(currentFm, fields) + '\n---\n\n' + body.replace(/^\n+/, '');
+
+    const res = await gh(contentsPath('source/_posts/' + encodeURIComponent(current.name)), {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: '更新文章：' + (fields.title || current.name),
+        content: b64encode(raw),
+        sha: current.sha,
+        branch: cfg.branch
+      })
+    });
+    current.sha = res.content.sha;
+    current.raw = raw;
+    currentFm = splitFm(raw).fm;
+    dirty = false;
+    msg('已提交到仓库', 'ok');
+    await loadFiles();
+  } catch (e) {
+    msg('保存失败：' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function newFile() {
+  if (!cfg.token) return msg('请先连接仓库', 'error');
+  const title = prompt('新文章标题：', '未命名文章');
+  if (title === null) return;
+  const clean = title.trim() || '未命名文章';
+  let name = clean.replace(/[\\/:*?"<>|]/g, '-') + '.md';
+  try {
+    const raw = '---\ntitle: ' + quote(clean) + '\ndate: ' + quote(nowLocal()) + '\ncategories:\ntags:\n---\n\n';
+    const res = await gh(contentsPath('source/_posts/' + encodeURIComponent(name)), {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: '新建文章：' + clean,
+        content: b64encode(raw),
+        branch: cfg.branch
+      })
+    });
+    msg('已创建', 'ok');
+    await loadFiles();
+    await openFile(name);
+  } catch (e) {
+    msg('创建失败：' + e.message, 'error');
+  }
+}
+
+async function deleteFile() {
+  if (!current) return;
+  if (!confirm('确定从仓库删除「' + current.name + '」？\nGitHub 上仍可通过提交历史找回。')) return;
+  try {
+    await gh(contentsPath('source/_posts/' + encodeURIComponent(current.name)), {
+      method: 'DELETE',
+      body: JSON.stringify({
+        message: '删除文章：' + current.name,
+        sha: current.sha,
+        branch: cfg.branch
+      })
+    });
+    current = null;
+    $('#editor').style.display = 'none';
+    $('#empty').style.display = 'block';
+    msg('已删除', 'ok');
+    await loadFiles();
+  } catch (e) {
+    msg('删除失败：' + e.message, 'error');
+  }
+}
+
+/* ---------------- 图片 ---------------- */
+function readAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
+async function uploadImage(file) {
+  const dataUrl = await readAsDataUrl(file);
+  const base64 = String(dataUrl).split(',')[1];
+  let name = file.name.replace(/[\\/:*?"<>|]/g, '-');
+  let path = 'source/images/' + name;
+
+  let sha;
+  try {
+    const existing = await gh(contentsPath(path) + '?ref=' + encodeURIComponent(cfg.branch));
+    sha = existing.sha;
+    name = name.replace(/(\.[^.]+)$/, '-' + Date.now() + '$1');
+    path = 'source/images/' + name;
+  } catch (e) {
+    if (e.status !== 404) throw e;
+  }
+
+  await gh(contentsPath(path), {
+    method: 'PUT',
+    body: JSON.stringify({
+      message: '上传图片：' + name,
+      content: base64,
+      branch: cfg.branch,
+      ...(sha ? { sha } : {})
+    })
+  });
+  return { name, url: '/images/' + encodeURIComponent(name) };
+}
+
+/* ---------------- 事件 ---------------- */
+$('#connect').addEventListener('click', connect);
+$('#disconnect').addEventListener('click', () => {
+  localStorage.removeItem('chic-admin');
+  $('#token').value = '';
+  cfg = { owner: '', repo: '', branch: 'main', token: '' };
+  files = [];
+  current = null;
+  renderList();
+  $('#editor').style.display = 'none';
+  $('#empty').style.display = 'block';
+  $('#note').classList.remove('show');
+  msg('已清除本地保存的凭据');
+});
+$('#new').addEventListener('click', newFile);
+$('#search').addEventListener('input', renderList);
+$('#btn-save').addEventListener('click', saveFile);
+$('#btn-delete').addEventListener('click', deleteFile);
+$('#btn-upload').addEventListener('click', () => {
+  if (!current) return msg('先选择一篇文章', 'error');
+  $('#file-input').click();
+});
+
+$('#file-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  msg('上传中…');
+  try {
+    const res = await uploadImage(file);
+    const ta = $('#f-body');
+    const snippet = '![' + res.name + '](' + res.url + ')';
+    const start = ta.selectionStart;
+    ta.value = ta.value.slice(0, start) + snippet + ta.value.slice(ta.selectionEnd);
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = start + snippet.length;
+    msg('图片已上传并插入', 'ok');
+  } catch (err) {
+    msg('上传失败：' + err.message, 'error');
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    if (current) saveFile();
+  }
+});
+
+window.addEventListener('beforeunload', (e) => {
+  if (dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+
+['#f-title', '#f-date', '#f-categories', '#f-tags', '#f-body'].forEach((sel) => {
+  $(sel).addEventListener('input', () => { dirty = true; });
+});
+$('#f-mathjax').addEventListener('change', () => { dirty = true; });
+
+/* ---------------- 启动 ---------------- */
+loadConfig();
+updateSiteLink();
+renderList();
+if (cfg.owner && cfg.token) connect();
+</script>
+</body>
+</html>
