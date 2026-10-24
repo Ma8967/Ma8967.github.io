@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>博客后台</title>
+  <script>
+    // 在样式生效前决定明暗，避免闪白
+    try {
+      var saved = localStorage.getItem('admin-theme')
+      var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches
+      if (dark) document.documentElement.classList.add('dark')
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Chic<span>后台</span></div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="posts">文章</button>
+      <button class="tab" data-tab="pages">页面</button>
+      <button class="tab" data-tab="media">图片</button>
+      <button class="tab" data-tab="settings">设置</button>
+      <button class="tab" data-tab="build">构建</button>
+    </nav>
+    <div class="top-actions">
+      <a class="site-link" href="http://localhost:4000" target="_blank" rel="noreferrer">预览站点 ↗</a>
+      <span id="status" class="status">连接中…</span>
+      <button id="theme-toggle" class="icon-toggle" title="切换明暗主题" aria-label="切换明暗主题">☾</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="tab-posts" class="tab-panel active">
+      <aside class="list-pane">
+        <div class="pane-head column">
+          <div class="seg">
+            <button id="kind-post" class="seg-btn active">文章</button>
+            <button id="kind-draft" class="seg-btn">草稿</button>
+          </div>
+          <div class="pane-row">
+            <input id="search" class="search" placeholder="搜索标题…">
+            <button id="btn-import" class="btn" title="导入本地 .md 文件">导入</button>
+            <button id="btn-new" class="btn primary">新建</button>
+          </div>
+        </div>
+        <ul id="post-list" class="post-list"></ul>
+      </aside>
+
+      <section class="editor-pane">
+        <div id="editor-empty" class="empty">从左侧选择一篇文章，或点击「新建」开始写作</div>
+
+        <div id="editor" class="editor hidden">
+          <div class="meta-grid">
+            <label>标题<input id="f-title" placeholder="文章标题"></label>
+            <label>日期<input id="f-date" type="datetime-local"></label>
+            <label>分类<input id="f-categories" placeholder="多个用逗号分隔"></label>
+            <label>标签<input id="f-tags" placeholder="多个用逗号分隔"></label>
+          </div>
+
+          <div class="editor-toolbar">
+            <span id="current-file" class="filename"></span>
+            <label class="check"><input type="checkbox" id="f-mathjax"> MathJax</label>
+            <span id="schedule-hint" class="badge schedule hidden">定时发布</span>
+            <span class="spacer"></span>
+            <button id="btn-publish" class="btn accent hidden">发布为文章</button>
+            <button id="btn-upload" class="btn">插入图片</button>
+            <button id="btn-preview" class="btn">预览</button>
+            <button id="btn-delete" class="btn danger">删除</button>
+            <button id="btn-save" class="btn primary">保存</button>
+          </div>
+
+          <div class="schedule-note">
+            日期填未来时间即为「定时上传」：到点后每 30 分钟一次的自动构建会把文章发上线。
+          </div>
+
+          <div class="split" id="split">
+            <textarea id="f-body" class="body-input" spellcheck="false" placeholder="用 Markdown 写正文…"></textarea>
+            <div id="preview" class="preview markdown-body hidden"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section id="tab-pages" class="tab-panel">
+      <aside class="list-pane">
+        <div class="pane-head">
+          <h3 class="pane-title">独立页面</h3>
+        </div>
+        <ul id="page-list" class="post-list"></ul>
+      </aside>
+      <section class="editor-pane">
+        <div id="page-empty" class="empty">选择左侧页面进行编辑，例如 About</div>
+        <div id="page-editor" class="editor hidden">
+          <div class="meta-grid page-meta">
+            <label>标题<input id="pg-title" placeholder="页面标题"></label>
+            <label>目录<input id="pg-name" disabled></label>
+          </div>
+          <div class="editor-toolbar">
+            <span id="pg-file" class="filename"></span>
+            <span class="spacer"></span>
+            <button id="btn-page-save" class="btn primary">保存页面</button>
+          </div>
+          <div class="split">
+            <textarea id="pg-body" class="body-input" spellcheck="false" placeholder="页面正文（Markdown）"></textarea>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section id="tab-media" class="tab-panel">
+      <div class="pane-head wide">
+        <h2>图片素材</h2>
+        <span class="hint">保存在 source/images/，正文引用路径为 /images/文件名</span>
+        <span class="spacer"></span>
+        <button id="btn-upload-media" class="btn primary">上传图片</button>
+      </div>
+      <div id="image-grid" class="image-grid"></div>
+    </section>
+
+    <section id="tab-settings" class="tab-panel">
+      <div class="pane-head wide">
+        <select id="settings-target" class="select">
+          <option value="site">站点配置 _config.yml</option>
+          <option value="theme">主题配置 themes/Chic/_config.yml</option>
+        </select>
+        <span class="hint">直接编辑 YAML，保存前会校验语法</span>
+        <span class="spacer"></span>
+        <button id="btn-save-settings" class="btn primary">保存配置</button>
+      </div>
+      <textarea id="settings-text" class="settings-input" spellcheck="false"></textarea>
+    </section>
+
+    <section id="tab-build" class="tab-panel">
+      <div class="pane-head wide">
+        <h2>生成静态页面</h2>
+        <span class="hint">输出到 public/，本地预览用；线上由 GitHub Actions 自动构建</span>
+        <span class="spacer"></span>
+        <button id="btn-build" class="btn primary">开始生成</button>
+      </div>
+      <pre id="build-log" class="build-log">尚未执行构建。</pre>
+    </section>
+  </main>
+
+  <input type="file" id="file-input" accept="image/*" hidden>
+  <input type="file" id="file-input-media" accept="image/*" multiple hidden>
+  <input type="file" id="md-input" accept=".md,.markdown,text/markdown" hidden>
+  <div id="toast" class="toast"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
