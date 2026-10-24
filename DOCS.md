@@ -66,7 +66,6 @@ Y:\my-blog
 ├─ package.json                 依赖清单 + 命令脚本
 ├─ package-lock.json            依赖锁定文件（保证换机器后版本一致）
 ├─ .gitignore                   Git 忽略规则
-├─ README.md                    快速开始（简版）
 ├─ DOCS.md                      本文档（完整版）
 ├─ start-admin.bat              双击启动本地后台
 ├─ start-preview.bat            双击启动前台预览
