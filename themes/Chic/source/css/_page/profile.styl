@@ -34,9 +34,21 @@
   font-weight normal
 
 .links
+  margin-top 1.7em
   a
-    padding: 0 5px
+    padding: 0 7px
     &:hover
       background-color: transparent
   .iconfont
     font-size: 2em
+  // 图标库里没有 Bilibili，用内联 SVG 遮罩补一个，颜色跟随链接
+  .icon-bilibili
+    &::before
+      content none
+    display inline-block
+    width 1.08em
+    height 1.08em
+    vertical-align -0.14em
+    background-color currentColor
+    -webkit-mask url("data:image/svg+xml,%3Csvg%20xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M6.7%201.8%203.2%205.3l1.5%201.5L8.1%203.4h7.8l3.4%203.4%201.5-1.5-3.5-3.5z'/%3E%3Cpath%20fill-rule='evenodd'%20d='M4.2%206.5h15.6A2.2%202.2%200%200%201%2022%208.7v10.6a2.2%202.2%200%200%201-2.2%202.2H4.2A2.2%202.2%200%200%201%202%2019.3V8.7a2.2%202.2%200%200%201%202.2-2.2zm4.1%203.6a1.75%201.75%200%201%200%200%203.5%201.75%201.75%200%200%200%200-3.5zm7.4%200a1.75%201.75%200%201%200%200%203.5%201.75%201.75%200%200%200%200-3.5z'/%3E%3C/svg%3E") no-repeat center / contain
+    mask url("data:image/svg+xml,%3Csvg%20xmlns='http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M6.7%201.8%203.2%205.3l1.5%201.5L8.1%203.4h7.8l3.4%203.4%201.5-1.5-3.5-3.5z'/%3E%3Cpath%20fill-rule='evenodd'%20d='M4.2%206.5h15.6A2.2%202.2%200%200%201%2022%208.7v10.6a2.2%202.2%200%200%201-2.2%202.2H4.2A2.2%202.2%200%200%201%202%2019.3V8.7a2.2%202.2%200%200%201%202.2-2.2zm4.1%203.6a1.75%201.75%200%201%200%200%203.5%201.75%201.75%200%200%200%200-3.5zm7.4%200a1.75%201.75%200%201%200%200%203.5%201.75%201.75%200%200%200%200-3.5z'/%3E%3C/svg%3E") no-repeat center / contain

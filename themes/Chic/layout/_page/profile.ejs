@@ -3,7 +3,9 @@
         <div class="avatar">
             <a href="<%- url_for(theme.nav.Posts) %>"><img src="<%- url_for(theme.avatar) %>"></a>
         </div>
-        <div class="nickname"><%- theme.nickname %></div>
+        <% if (theme.nickname && String(theme.nickname).trim()) { %>
+            <div class="nickname"><%- theme.nickname %></div>
+        <% } %>
         <% if (theme.description && String(theme.description).trim()) { %>
             <div class="description"><%- markdown(theme.description) %></div>
         <% } %>

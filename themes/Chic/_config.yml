@@ -10,7 +10,7 @@ nav:
 favicon: /favicon.ico
 
 # Profile
-nickname: 风穴翔
+nickname: ""
 
 ### this variable is MarkDown form.
 description: ""
@@ -22,6 +22,8 @@ avatar: /image/avatar.jpeg
 ## Unused key can be commented out.
 links:
   Blog: /archives
+  Bilibili: https://space.bilibili.com/366034153
+  Github: https://github.com/Ma8967
   # Category:
   # Tags:
   # Link:
