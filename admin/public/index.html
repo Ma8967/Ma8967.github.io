@@ -66,7 +66,6 @@
             <span class="spacer"></span>
             <button id="btn-publish" class="btn accent hidden">发布为文章</button>
             <button id="btn-upload" class="btn">插入图片</button>
-            <button id="btn-preview" class="btn">预览</button>
             <button id="btn-delete" class="btn danger">删除</button>
             <button id="btn-save" class="btn primary">保存</button>
           </div>
@@ -75,10 +74,7 @@
             日期填未来时间即为「定时上传」：到点后每 30 分钟一次的自动构建会把文章发上线。
           </div>
 
-          <div class="split" id="split">
-            <textarea id="f-body" class="body-input" spellcheck="false" placeholder="用 Markdown 写正文…"></textarea>
-            <div id="preview" class="preview markdown-body hidden"></div>
-          </div>
+          <div class="editor-body" id="editor-body-post"></div>
         </div>
       </section>
     </section>
@@ -99,12 +95,11 @@
           </div>
           <div class="editor-toolbar">
             <span id="pg-file" class="filename"></span>
+            <span class="hint">富文本保存时自动转成 Markdown</span>
             <span class="spacer"></span>
             <button id="btn-page-save" class="btn primary">保存页面</button>
           </div>
-          <div class="split">
-            <textarea id="pg-body" class="body-input" spellcheck="false" placeholder="页面正文（Markdown）"></textarea>
-          </div>
+          <div class="editor-body" id="editor-body-page"></div>
         </div>
       </section>
     </section>

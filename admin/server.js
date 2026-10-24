@@ -12,6 +12,8 @@ const path = require('path')
 const yaml = require('js-yaml')
 const markedModule = require('marked')
 const marked = markedModule.marked || markedModule
+const TurndownService = require('turndown')
+const { gfm } = require('turndown-plugin-gfm')
 const { execFile } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -93,6 +95,35 @@ function composeMarkdown(data, body) {
   return `---\n${fm}\n---\n\n${cleanBody}`
 }
 
+/* ---------------------- 富文本 ↔ Markdown ---------------------- */
+
+const turndown = new TurndownService({
+  headingStyle: 'atx',
+  hr: '---',
+  bulletListMarker: '-',
+  codeBlockStyle: 'fenced',
+  emDelimiter: '*',
+  strongDelimiter: '**',
+  linkStyle: 'inlined'
+})
+turndown.use(gfm)
+// 插件默认输出单波浪线，GFM 需要双波浪线
+turndown.addRule('strikethrough', {
+  filter: ['del', 's', 'strike'],
+  replacement: (content) => '~~' + content + '~~'
+})
+// 保留字号、颜色、下划线、着重号等 Markdown 表达不了的行内 HTML
+turndown.keep(['span', 'u', 'mark'])
+
+function markdownToHtml(body) {
+  return marked.parse(String(body || ''), { gfm: true, breaks: false })
+}
+
+function htmlToMarkdown(html) {
+  const md = turndown.turndown(String(html || ''))
+  return md.replace(/ /g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 function nowStamp() {
   const d = new Date()
   const p = (n) => String(n).padStart(2, '0')
@@ -165,7 +196,7 @@ app.get('/api/posts/:name', (req, res) => {
     if (!fs.existsSync(file)) return res.status(404).json({ error: '文件不存在' })
     const raw = fs.readFileSync(file, 'utf8')
     const { data, body } = parseFrontMatter(raw)
-    res.json({ name: path.basename(file), kind, raw, data, body })
+    res.json({ name: path.basename(file), kind, raw, data, body, html: markdownToHtml(body) })
   } catch (e) {
     res.status(400).json({ error: e.message })
   }
@@ -203,8 +234,17 @@ app.put('/api/posts/:name', (req, res) => {
     if (!fs.existsSync(file)) return res.status(404).json({ error: '文件不存在' })
     const data = req.body.data || {}
     if (!data.title) data.title = path.basename(file, '.md')
-    fs.writeFileSync(file, composeMarkdown(data, req.body.body || ''), 'utf8')
-    res.json({ ok: true, kind, name: path.basename(file), scheduled: kind === 'post' && isScheduled(data.date) })
+    const body = req.body.html !== undefined
+      ? htmlToMarkdown(req.body.html)
+      : String(req.body.body || '')
+    fs.writeFileSync(file, composeMarkdown(data, body), 'utf8')
+    res.json({
+      ok: true,
+      kind,
+      name: path.basename(file),
+      markdown: body,
+      scheduled: kind === 'post' && isScheduled(data.date)
+    })
   } catch (e) {
     res.status(400).json({ error: e.message })
   }
@@ -312,7 +352,7 @@ app.get('/api/pages/:name', (req, res) => {
     const file = path.join(dir, 'index.md')
     const raw = fs.readFileSync(file, 'utf8')
     const { data, body } = parseFrontMatter(raw)
-    res.json({ name: req.params.name, raw, data, body })
+    res.json({ name: req.params.name, raw, data, body, html: markdownToHtml(body) })
   } catch (e) {
     res.status(404).json({ error: e.message })
   }
@@ -323,7 +363,10 @@ app.put('/api/pages/:name', (req, res) => {
     const dir = pageDir(req.params.name)
     const data = req.body.data || {}
     if (!data.title) data.title = req.params.name
-    fs.writeFileSync(path.join(dir, 'index.md'), composeMarkdown(data, req.body.body || ''), 'utf8')
+    const body = req.body.html !== undefined
+      ? htmlToMarkdown(req.body.html)
+      : String(req.body.body || '')
+    fs.writeFileSync(path.join(dir, 'index.md'), composeMarkdown(data, body), 'utf8')
     res.json({ ok: true, name: req.params.name })
   } catch (e) {
     res.status(400).json({ error: e.message })
@@ -400,7 +443,25 @@ app.put('/api/settings', (req, res) => {
 /* -------------------------------- 预览 / 构建 -------------------------------- */
 
 app.post('/api/preview', (req, res) => {
-  res.json({ html: marked.parse(String(req.body.body || ''), { gfm: true, breaks: false }) })
+  res.json({ html: markdownToHtml(req.body.body) })
+})
+
+/** Markdown → 富文本 HTML */
+app.post('/api/render', (req, res) => {
+  try {
+    res.json({ html: markdownToHtml(req.body.markdown) })
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
+})
+
+/** 富文本 HTML → Markdown */
+app.post('/api/markdown', (req, res) => {
+  try {
+    res.json({ markdown: htmlToMarkdown(req.body.html) })
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
 })
 
 app.post('/api/build', (req, res) => {

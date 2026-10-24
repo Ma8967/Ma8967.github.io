@@ -3,11 +3,10 @@
 const $ = (sel) => document.querySelector(sel)
 const $$ = (sel) => Array.from(document.querySelectorAll(sel))
 
-let kind = 'post'              // post | draft
+let kind = 'post'
 let items = []
-let current = null             // {name, kind, data, body}
+let current = null
 let currentData = {}
-let previewOn = false
 let settingsCache = { site: '', theme: '' }
 let building = false
 let pages = []
@@ -58,6 +57,291 @@ function isFuture(value) {
   return Number.isFinite(t) && t > Date.now()
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+}
+
+/* ------------------------------ 富文本编辑器 ------------------------------ */
+
+const COLORS = ['#161209', '#c94a4a', '#e07b39', '#c9a227', '#1a9f7a', '#2d96bd', '#5b6ec9', '#9b51e0', '#ef3982', '#6b7280', '#9b968e', '#ffffff']
+
+function createRichEditor(host) {
+  host.innerHTML = `
+    <div class="format-toolbar">
+      <select class="tb-select tb-block" title="段落样式">
+        <option value="p">正文</option>
+        <option value="h1">标题 1</option>
+        <option value="h2">标题 2</option>
+        <option value="h3">标题 3</option>
+        <option value="blockquote">引用</option>
+      </select>
+      <select class="tb-select tb-size" title="字号">
+        <option value="">字号</option>
+        <option value="12">12 px</option>
+        <option value="14">14 px</option>
+        <option value="16">16 px</option>
+        <option value="18">18 px</option>
+        <option value="20">20 px</option>
+        <option value="24">24 px</option>
+        <option value="28">28 px</option>
+        <option value="32">32 px</option>
+      </select>
+      <div class="color-wrap">
+        <button type="button" class="tb-btn tb-color" title="字体颜色"><span></span></button>
+        <div class="color-menu">
+          ${COLORS.map((c) => `<button type="button" data-color="${c}" style="background:${c}" title="${c}"></button>`).join('')}
+        </div>
+      </div>
+      <span class="tb-sep"></span>
+      <button type="button" class="tb-btn" data-cmd="bold" title="粗体"><b>B</b></button>
+      <button type="button" class="tb-btn" data-cmd="italic" title="斜体"><i>I</i></button>
+      <button type="button" class="tb-btn" data-cmd="underline" title="下划线"><u>U</u></button>
+      <button type="button" class="tb-btn" data-cmd="strikeThrough" title="中划线"><s>S</s></button>
+      <button type="button" class="tb-btn tb-emdot" title="着重号">着重</button>
+      <span class="tb-sep"></span>
+      <button type="button" class="tb-btn" data-cmd="insertUnorderedList" title="项目符号">• 列表</button>
+      <button type="button" class="tb-btn" data-cmd="insertOrderedList" title="编号列表">1. 列表</button>
+      <button type="button" class="tb-btn tb-quote" title="引用">引用</button>
+      <button type="button" class="tb-btn tb-code" title="代码块">代码块</button>
+      <button type="button" class="tb-btn tb-link" title="插入链接">链接</button>
+      <button type="button" class="tb-btn tb-clear" title="清除格式">清除格式</button>
+      <span class="tb-sep"></span>
+      <button type="button" class="tb-btn" data-cmd="undo" title="撤销">撤销</button>
+      <button type="button" class="tb-btn" data-cmd="redo" title="重做">重做</button>
+      <span class="spacer"></span>
+      <div class="mode-switch">
+        <button type="button" data-mode="rich" class="active">富文本</button>
+        <button type="button" data-mode="md">Markdown</button>
+      </div>
+    </div>
+    <div class="rich-editor" contenteditable="true" spellcheck="false" data-placeholder="在这里写作，像 Word 一样直接排版…"></div>
+    <textarea class="body-input hidden" spellcheck="false" placeholder="Markdown 源码"></textarea>
+  `
+
+  const editor = host.querySelector('.rich-editor')
+  const textarea = host.querySelector('.body-input')
+  const toolbar = host.querySelector('.format-toolbar')
+  const blockSelect = host.querySelector('.tb-block')
+  const sizeSelect = host.querySelector('.tb-size')
+  const colorWrap = host.querySelector('.color-wrap')
+  const colorMenu = host.querySelector('.color-menu')
+  const modeBtns = Array.from(host.querySelectorAll('.mode-switch button'))
+
+  let mode = 'rich'
+  let savedRange = null
+
+  function saveSelection() {
+    const sel = window.getSelection()
+    if (sel && sel.rangeCount) savedRange = sel.getRangeAt(0).cloneRange()
+  }
+
+  function restoreSelection() {
+    editor.focus()
+    if (!savedRange) return
+    try {
+      const sel = window.getSelection()
+      sel.removeAllRanges()
+      sel.addRange(savedRange)
+    } catch (e) { /* ignore */ }
+  }
+
+  function exec(cmd, value) {
+    restoreSelection()
+    document.execCommand(cmd, false, value)
+    saveSelection()
+    editor.focus()
+  }
+
+  function wrapStyle(apply) {
+    restoreSelection()
+    const sel = window.getSelection()
+    if (!sel || !sel.rangeCount) return
+    const range = sel.getRangeAt(0)
+    if (range.collapsed) return
+
+    const span = document.createElement('span')
+    apply(span)
+    try {
+      range.surroundContents(span)
+    } catch (e) {
+      span.appendChild(range.extractContents())
+      range.insertNode(span)
+    }
+    const r = document.createRange()
+    r.selectNodeContents(span)
+    sel.removeAllRanges()
+    sel.addRange(r)
+    savedRange = r.cloneRange()
+    editor.focus()
+  }
+
+  function insertHtml(html) {
+    restoreSelection()
+    document.execCommand('insertHTML', false, html)
+    saveSelection()
+    editor.focus()
+  }
+
+  function clearFormat() {
+    restoreSelection()
+    document.execCommand('removeFormat')
+    const sel = window.getSelection()
+    if (!sel || !sel.rangeCount) return
+    const range = sel.getRangeAt(0)
+    const root = range.commonAncestorContainer.nodeType === 1
+      ? range.commonAncestorContainer
+      : range.commonAncestorContainer.parentElement
+    if (!root) return
+    const spans = Array.from(root.querySelectorAll('span'))
+    if (root.tagName === 'SPAN') spans.unshift(root)
+    spans.forEach((span) => {
+      try {
+        if (range.intersectsNode(span)) span.replaceWith(...Array.from(span.childNodes))
+      } catch (e) { /* ignore */ }
+    })
+    editor.focus()
+  }
+
+  /* 工具栏按钮：阻止 mousedown 抢走选区 */
+  toolbar.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('mousedown', (e) => e.preventDefault())
+  })
+
+  toolbar.querySelectorAll('[data-cmd]').forEach((btn) => {
+    btn.addEventListener('click', () => exec(btn.dataset.cmd))
+  })
+
+  blockSelect.addEventListener('change', () => {
+    exec('formatBlock', blockSelect.value)
+    blockSelect.value = 'p'
+  })
+
+  sizeSelect.addEventListener('change', () => {
+    const px = sizeSelect.value
+    sizeSelect.value = ''
+    if (!px) return
+    wrapStyle((span) => { span.style.fontSize = px + 'px' })
+  })
+
+  host.querySelector('.tb-color').addEventListener('click', (e) => {
+    e.stopPropagation()
+    colorMenu.classList.toggle('show')
+  })
+
+  colorMenu.querySelectorAll('[data-color]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      wrapStyle((span) => { span.style.color = btn.dataset.color })
+      colorMenu.classList.remove('show')
+    })
+  })
+
+  host.querySelector('.tb-emdot').addEventListener('click', () => {
+    wrapStyle((span) => { span.className = 'em-dot' })
+  })
+
+  host.querySelector('.tb-quote').addEventListener('click', () => exec('formatBlock', 'blockquote'))
+
+  host.querySelector('.tb-link').addEventListener('click', () => {
+    const url = prompt('链接地址：', 'https://')
+    if (!url) return
+    restoreSelection()
+    const sel = window.getSelection()
+    if (sel && sel.isCollapsed) {
+      insertHtml(`<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`)
+    } else {
+      exec('createLink', url)
+    }
+  })
+
+  host.querySelector('.tb-code').addEventListener('click', () => {
+    restoreSelection()
+    const sel = window.getSelection()
+    const text = sel && !sel.isCollapsed ? sel.toString() : '代码'
+    insertHtml(`<pre><code>${escapeHtml(text)}</code></pre><p><br></p>`)
+  })
+
+  host.querySelector('.tb-clear').addEventListener('click', clearFormat)
+
+  modeBtns.forEach((btn) => {
+    btn.addEventListener('click', () => setMode(btn.dataset.mode).catch((e) => toast(e.message, true)))
+  })
+
+  async function setMode(next) {
+    if (next === mode) return
+    if (next === 'md') {
+      const res = await api('/api/markdown', {
+        method: 'POST',
+        body: JSON.stringify({ html: editor.innerHTML })
+      })
+      textarea.value = res.markdown
+      editor.classList.add('hidden')
+      textarea.classList.remove('hidden')
+    } else {
+      const res = await api('/api/render', {
+        method: 'POST',
+        body: JSON.stringify({ markdown: textarea.value })
+      })
+      editor.innerHTML = res.html
+      editor.classList.remove('hidden')
+      textarea.classList.add('hidden')
+    }
+    mode = next
+    toolbar.classList.toggle('md-mode', mode === 'md')
+    modeBtns.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode))
+  }
+
+  editor.addEventListener('keyup', saveSelection)
+  editor.addEventListener('mouseup', saveSelection)
+  editor.addEventListener('input', saveSelection)
+
+  document.addEventListener('selectionchange', () => {
+    if (document.activeElement !== editor) return
+    saveSelection()
+    toolbar.querySelectorAll('[data-cmd]').forEach((btn) => {
+      if (!['bold', 'italic', 'underline', 'strikeThrough'].includes(btn.dataset.cmd)) return
+      let active = false
+      try { active = document.queryCommandState(btn.dataset.cmd) } catch (e) { /* ignore */ }
+      btn.classList.toggle('active', active)
+    })
+  })
+
+  document.addEventListener('click', (e) => {
+    if (!colorWrap.contains(e.target)) colorMenu.classList.remove('show')
+  })
+
+  return {
+    host,
+    editor,
+    textarea,
+    getMode: () => mode,
+    focus: () => editor.focus(),
+    setContent(html, markdown) {
+      editor.innerHTML = html || ''
+      textarea.value = markdown || ''
+    },
+    getPayload() {
+      return mode === 'rich' ? { html: editor.innerHTML } : { body: textarea.value }
+    },
+    setMarkdown(md) {
+      textarea.value = md || ''
+    },
+    insertImage(html, md) {
+      if (mode === 'rich') {
+        insertHtml(html)
+      } else {
+        const start = textarea.selectionStart
+        const end = textarea.selectionEnd
+        textarea.value = textarea.value.slice(0, start) + md + textarea.value.slice(end)
+        textarea.selectionStart = textarea.selectionEnd = start + md.length
+        textarea.focus()
+      }
+    }
+  }
+}
+
+const postEditor = createRichEditor($('#editor-body-post'))
+const pageEditor = createRichEditor($('#editor-body-page'))
+
 /* -------------------------------- 标签页 -------------------------------- */
 
 $$('.tab').forEach((btn) => {
@@ -72,8 +356,8 @@ $$('.tab').forEach((btn) => {
 
 /* ------------------------------ 文章 / 草稿 ------------------------------ */
 
-function itemUrl(name, extra) {
-  return '/api/posts/' + encodeURIComponent(name) + '?kind=' + kind + (extra || '')
+function itemUrl(name) {
+  return '/api/posts/' + encodeURIComponent(name) + '?kind=' + kind
 }
 
 async function loadItems() {
@@ -123,7 +407,6 @@ function renderList() {
   filtered.forEach((p) => {
     const li = document.createElement('li')
     li.className = 'post-item' + (current && current.name === p.name ? ' active' : '')
-    li.dataset.name = p.name
 
     const title = document.createElement('div')
     title.className = 'p-title'
@@ -163,11 +446,7 @@ async function selectItem(name) {
   const data = await api(itemUrl(name))
   current = { name: data.name, kind: data.kind, data: data.data, body: data.body }
   currentData = Object.assign({}, data.data)
-  fillEditor()
-  renderList()
-}
 
-function fillEditor() {
   $('#editor-empty').classList.add('hidden')
   $('#editor').classList.remove('hidden')
   $('#current-file').textContent = current.name + (kind === 'draft' ? '（草稿）' : '')
@@ -176,10 +455,10 @@ function fillEditor() {
   $('#f-categories').value = (Array.isArray(currentData.categories) ? currentData.categories : []).join(', ')
   $('#f-tags').value = (Array.isArray(currentData.tags) ? currentData.tags : []).join(', ')
   $('#f-mathjax').checked = currentData.mathjax === true
-  $('#f-body').value = current.body || ''
   $('#btn-publish').classList.toggle('hidden', kind !== 'draft')
   updateScheduleHint()
-  if (previewOn) refreshPreview()
+  postEditor.setContent(data.html, data.body)
+  renderList()
 }
 
 function collectData() {
@@ -223,10 +502,13 @@ async function saveItem() {
     const data = collectData()
     const res = await api(itemUrl(current.name), {
       method: 'PUT',
-      body: JSON.stringify({ data, body: $('#f-body').value })
+      body: JSON.stringify(Object.assign({ data }, postEditor.getPayload()))
     })
     currentData = data
-    current.body = $('#f-body').value
+    if (res.markdown !== undefined) {
+      current.body = res.markdown
+      postEditor.setMarkdown(res.markdown)
+    }
     toast(res.scheduled ? '已保存，到设定时间自动发布' : '已保存')
     await loadItems()
   } catch (e) {
@@ -274,10 +556,9 @@ async function publishDraft() {
   if (!current || kind !== 'draft') return
   if (!confirm(`把草稿「${currentData.title || current.name}」发布为文章？\n日期为空会用当前时间。`)) return
   try {
-    // 先保存当前编辑内容，再发布
     await api(itemUrl(current.name), {
       method: 'PUT',
-      body: JSON.stringify({ data: collectData(), body: $('#f-body').value })
+      body: JSON.stringify(Object.assign({ data: collectData() }, postEditor.getPayload()))
     })
     const res = await api('/api/publish', {
       method: 'POST',
@@ -354,7 +635,7 @@ async function selectPage(name) {
   $('#pg-title').value = data.data.title || name
   $('#pg-name').value = '/' + name + '/'
   $('#pg-file').textContent = `source/${name}/index.md`
-  $('#pg-body').value = data.body || ''
+  pageEditor.setContent(data.html, data.body)
   await loadPages()
 }
 
@@ -366,10 +647,9 @@ async function savePage() {
     const data = Object.assign({}, currentPage.data, { title: $('#pg-title').value.trim() || currentPage.name })
     await api('/api/pages/' + encodeURIComponent(currentPage.name), {
       method: 'PUT',
-      body: JSON.stringify({ data, body: $('#pg-body').value })
+      body: JSON.stringify(Object.assign({ data }, pageEditor.getPayload()))
     })
     currentPage.data = data
-    currentPage.body = $('#pg-body').value
     toast('页面已保存')
     await loadPages()
   } catch (e) {
@@ -377,24 +657,6 @@ async function savePage() {
   } finally {
     btn.disabled = false
   }
-}
-
-/* -------------------------------- 预览 -------------------------------- */
-
-async function refreshPreview() {
-  const html = (await api('/api/preview', {
-    method: 'POST',
-    body: JSON.stringify({ body: $('#f-body').value })
-  })).html
-  $('#preview').innerHTML = html
-}
-
-function togglePreview() {
-  previewOn = !previewOn
-  $('#split').classList.toggle('previewing', previewOn)
-  $('#preview').classList.toggle('hidden', !previewOn)
-  $('#btn-preview').textContent = previewOn ? '关闭预览' : '预览'
-  if (previewOn) refreshPreview().catch((e) => toast(e.message, true))
 }
 
 /* -------------------------------- 图片 -------------------------------- */
@@ -416,9 +678,15 @@ async function uploadFile(file) {
   })
 }
 
-async function insertImage() {
-  if (!current) return toast('先选择一篇文章', true)
-  $('#file-input').click()
+function insertImage(file, editor) {
+  return uploadFile(file).then((res) => {
+    const alt = escapeHtml(file.name)
+    editor.insertImage(
+      `<img src="${res.url}" alt="${alt}">`,
+      `![${file.name}](${res.url})`
+    )
+    toast('图片已上传')
+  })
 }
 
 async function loadImages() {
@@ -576,11 +844,11 @@ $('#btn-import').addEventListener('click', importMarkdown)
 $('#btn-save').addEventListener('click', saveItem)
 $('#btn-delete').addEventListener('click', deleteItem)
 $('#btn-publish').addEventListener('click', publishDraft)
-$('#btn-preview').addEventListener('click', togglePreview)
-$('#btn-upload').addEventListener('click', insertImage)
+$('#btn-upload').addEventListener('click', () => $('#file-input').click())
 $('#btn-save-settings').addEventListener('click', saveSettings)
 $('#btn-build').addEventListener('click', buildSite)
 $('#btn-page-save').addEventListener('click', savePage)
+$('#btn-upload-media').addEventListener('click', () => $('#file-input-media').click())
 $('#f-date').addEventListener('input', updateScheduleHint)
 
 $('#settings-target').addEventListener('change', () => {
@@ -592,21 +860,11 @@ $('#file-input').addEventListener('change', async (e) => {
   e.target.value = ''
   if (!file) return
   try {
-    const res = await uploadFile(file)
-    const textarea = $('#f-body')
-    const snippet = `![${file.name}](${res.url})`
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    textarea.value = textarea.value.slice(0, start) + snippet + textarea.value.slice(end)
-    textarea.focus()
-    textarea.selectionStart = textarea.selectionEnd = start + snippet.length
-    toast('图片已上传')
+    await insertImage(file, postEditor)
   } catch (err) {
     toast(err.message, true)
   }
 })
-
-$('#btn-upload-media').addEventListener('click', () => $('#file-input-media').click())
 
 $('#file-input-media').addEventListener('change', async (e) => {
   const files = Array.from(e.target.files)
