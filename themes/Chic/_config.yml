@@ -13,7 +13,7 @@ favicon: /favicon.ico
 nickname: 风穴翔
 
 ### this variable is MarkDown form.
-description: "这里是我的 **个人博客**，记录学习、思考与生活。<br>欢迎常来看看。"
+description: ""
 avatar: /image/avatar.jpeg
 
 # main menu navigation
