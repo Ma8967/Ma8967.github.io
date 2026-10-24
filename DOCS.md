@@ -115,7 +115,8 @@ Y:\my-blog
 │     └─ style.css              后台样式
 │
 ├─ admin-online/
-│  └─ index.html                在线管理后台（单文件，通过 GitHub API 工作）
+│  ├─ index.html                在线管理后台（富文本，通过 GitHub API 工作）
+│  └─ vendor/                   marked + turndown，浏览器端 Markdown 转换
 │
 ├─ deploy-optional/
 │  └─ deploy.yml                GitHub Actions 模板（默认不生效）
@@ -414,7 +415,9 @@ npm run admin
 
 ### 8.1 原理
 
-`admin-online/index.html` 是一个纯静态单文件，不依赖服务器。它在浏览器里用 GitHub API 直接读写仓库中的 Markdown 文件，改动以 commit 形式提交。
+`admin-online/index.html` 是纯静态页面，不依赖服务器。它在浏览器里用 GitHub API 直接读写仓库中的 Markdown 文件，改动以 commit 形式提交。
+
+编辑器与本地后台一致：支持富文本排版（字号、颜色、粗体、斜体、下划线、中划线、着重号、列表等）和 Markdown 源码切换，保存时由 `vendor/` 里的 marked 和 turndown 在浏览器本地完成 HTML ↔ Markdown 转换。
 
 适合：手机、平板、别人的电脑上临时改文章。
 不适合：日常写作（本地后台更快、更安全）。
@@ -433,7 +436,7 @@ npm run admin
 
 ### 8.3 使用
 
-1. 双击 `admin-online/index.html`
+1. 双击 `admin-online/index.html`（`vendor/` 目录必须和它放在一起）
 2. 填写：
    - GitHub 用户名
    - 仓库名（默认 `用户名.github.io`）
@@ -459,7 +462,7 @@ Token 保存在浏览器 localStorage，公用电脑使用后点「清除」。
 
 ### 8.5 托管在线后台（可选）
 
-单文件可以放在任何静态位置：
+整个 `admin-online/` 目录（含 `vendor/`）可以放在任何静态位置：
 
 - 直接双击本地打开（最简单）
 - 放到独立的 GitHub 仓库并开启 Pages（`https://用户名.github.io/blog-admin/`）
