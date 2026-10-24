@@ -34,9 +34,18 @@
   font-weight normal
 
 .links
+  display flex
+  flex-wrap wrap
+  justify-content center
+  align-items center
+  gap 0.4em
   margin-top 1.7em
   a
-    padding: 0 7px
+    display inline-flex
+    align-items center
+    justify-content center
+    padding: 0 4px
+    line-height 1
     &:hover
       background-color: transparent
   .iconfont
@@ -44,10 +53,10 @@
   // 图标库里没有 Bilibili，用内联 SVG 绘制，颜色跟随链接
   .icon-bilibili
     display inline-block
-    width 1em
-    height 1em
-    vertical-align -0.16em
+    width 2rem
+    height 2rem
+    font-size 0
     .bili-svg
       display block
-      width 100%
-      height 100%
+      width 2rem
+      height 2rem
