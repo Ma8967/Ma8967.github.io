@@ -16,9 +16,11 @@ date: "2026-10-24 10:00:00"
 4.  **多步骤任务自动化与过程监控**
     
 
-<span style="font-size: 12px;"><span style="font-size: 12px;"><strike>简称ctrl+c ctrl+v和让AI 帮我干活</strike></span></span>
+ ~~简称ctrl+c ctrl+v和让AI 帮我干活~~ 
 
-<span style="font-size: 12px;"><span style="font-size: 12px;"><strike><br></strike></span></span>
+<span style="font-size: 16px;">代码苦手 一看到代码就头疼:(</span>
+
+<span style="font-size: 12px;"><span style="font-size: 16px;"><br></span></span>
 
 <span style="font-size: 12px;"><span style="font-size: 12px;"><strike><br></strike></span></span>
 
